@@ -15,7 +15,7 @@ ApplicationManager::ApplicationManager(int argc, char* argv[]): _argc(argc), _ar
 void ApplicationManager::parseOptions()
 {
     int opt;
-    while ((opt = getopt(_argc, _argv, "vid::")) != -1)
+    while ((opt = getopt(_argc, _argv, "vid::")) != -1) //:: 두개 확실히 처리 필요
     {
         switch (opt)
         {
