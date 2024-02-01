@@ -11,16 +11,19 @@ CaptureEngine::CaptureEngine(const std::string& if_name): _if_name(if_name)
 
 CaptureEngine::~CaptureEngine()
 {   
+    if (_dumpert_t != nullptr)
+    {
+        pcap_dump_close(_dumpert_t);
+    }
     pcap_close(_pcap_handle);
 }
 
-void CaptureEngine::setting()
+void CaptureEngine::setPromisc()
 {
     if (pcap_set_promisc(_pcap_handle, 1) != 0)
     {
         throw std::runtime_error("promisc 변환 오류");
     }
-    activate();
 }
 
 void CaptureEngine::activate()
@@ -51,7 +54,12 @@ void CaptureEngine::activate()
 
 void live_capture_handler(u_char *user, const struct pcap_pkthdr *header, const u_char *packet)
 {
-   parse_packet(header, packet);
+    auto result = parse_packet(header, packet);
+
+    if (result.has_value())
+    {
+        std::cout << result.value() << std::endl;
+    }
 }
 
 void CaptureEngine::liveCaptureStart()
@@ -59,15 +67,17 @@ void CaptureEngine::liveCaptureStart()
     pcap_loop(_pcap_handle, 0, live_capture_handler, nullptr);
 }
 
-void dump_capture_handler(u_char *dumpert_t, const struct pcap_pkthdr *header, const u_char *packet)
-{ 
-   pcap_dump(dumpert_t, header, packet);
-}
-
 void CaptureEngine::dumpCaptureStart(const std::string& path)
 {
-    pcap_dumper_t *dumpert_t = pcap_dump_open(_pcap_handle, path.c_str());
-    pcap_loop(_pcap_handle, 0, dump_capture_handler, reinterpret_cast<u_char *>(dumpert_t));
+    _dumpert_t = pcap_dump_open(_pcap_handle, path.c_str());
+    if (_dumpert_t == nullptr)
+    {
+        char err_message[100];
+        sprintf(err_message, "\"%s\" 는 올바른 경로가 아닙니다.", path.c_str());
+        throw std::runtime_error(err_message);
+    }
+    std::cout << "Dump Start" << std::endl;
+    pcap_loop(_pcap_handle, 0, pcap_dump, reinterpret_cast<u_char *>(_dumpert_t));
 }
 
 
@@ -76,7 +86,7 @@ void CaptureEngine::PrintPcapVersion()
     std::cout << pcap_lib_version() << '\n';
 }
 
-void CaptureEngine::GetInterfaceInfo()
+void CaptureEngine::PrintNICInfo()
 {
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_if_t* alldevs;

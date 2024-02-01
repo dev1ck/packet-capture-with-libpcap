@@ -7,22 +7,32 @@
 #define kPacketMaxLen 4096
 #define kEthMaxLen 1514
 #define kArpMaxLen 42
-#define kEthertypeIp 0x0800
 #define kPseudoHeaderLen 12
 
+// ethernet type
+#define kEtherTypeIP 0x0800
+#define kEtherTypeARP 0x0806
+
+// arp type
+#define kArpRequest 0x0001
+#define kArpReply 0x0002
+
+#define kIpTypeICMP 0x01
+#define kIpTypeTcp 0x06
+
 // IP 헤더 상수
-#define kIpRf 0x8000            /* reserved fragment flag */
-#define kIpDf 0x4000            /* dont fragment flag */
-#define kIpMf 0x2000            /* more fragments flag */
-#define kIpOffmask 0x1fff       /* mask for fragmenting bits */
+#define kRF 0x8000            /* reserved fragment flag */
+#define kDF 0x4000            /* dont fragment flag */
+#define kMF 0x2000            /* more fragments flag */
+#define kOffMask 0x1fff       /* mask for fragmenting bits */
 
 // TCP 헤더 상수
-#define kThFin 0x01
-#define kThSyn 0x02
-#define kThRst 0x04
-#define kThPush 0x08
-#define kThAck 0x10
-#define kThUrg 0x20
+#define kFIN 0x01
+#define kSYN 0x02
+#define kRST 0x04
+#define kPSH 0x08
+#define kACK 0x10
+#define kURG 0x20
 
 struct __attribute__((__packed__)) EtherHdr
 {
@@ -33,43 +43,43 @@ struct __attribute__((__packed__)) EtherHdr
 
 struct __attribute__((__packed__)) ArpHdr 
 {
-	uint16_t arHrd;		    // Format of hardware address 
-   	uint16_t arPro;		    // Format of protocol address
-   	uint8_t arHln;			// Length of hardware address 
-   	uint8_t arPln;			// Length of protocol address 
-   	uint16_t arOp;			// ARP opcode (command) 
-   	uint8_t arSha[6];		// Sender hardware address 
-   	uint32_t arSip;		    // Sender IP address 
-   	uint8_t arTha[6];		// Target hardware address 
-   	uint32_t arTip;		    // Target IP address 
+	uint16_t arpHrd;		    // Format of hardware address 
+   	uint16_t arpPro;		    // Format of protocol address
+   	uint8_t arpHln;				// Length of hardware address 
+   	uint8_t arpPln;				// Length of protocol address 
+   	uint16_t arpOp;				// ARP opcode (command) 
+   	uint8_t arpSha[6];			// Sender hardware address 
+   	struct in_addr arpSip;		// Sender IP address 
+   	uint8_t arpTha[6];			// Target hardware address 
+   	struct in_addr arpTip;		// Target IP address 
 };
 
 struct __attribute__((__packed__)) IpHdr
 {
-    uint8_t ipHl:4;		    /* header length */
-	uint8_t ipV:4;		    /* version */
-	uint8_t ipTos;			/* type of service */
-	uint16_t ipLen;		    /* total length */
-	uint16_t ipId;			/* identification */
-	uint16_t ipOff;		    /* fragment offset field */
-	uint8_t ipTtl;			/* time to live */
-	uint8_t ipP;			/* protocol */
-	uint16_t ipSum;		    /* checksum */
+    uint8_t ipHl:4;		    		/* header length */
+	uint8_t ipV:4;		    		/* version */
+	uint8_t ipTos;					/* type of service */
+	uint16_t ipLen;		    		/* total length */
+	uint16_t ipId;					/* identification */
+	uint16_t ipOff;		    		/* fragment offset field */
+	uint8_t ipTtl;					/* time to live */
+	uint8_t ipP;					/* protocol */
+	uint16_t ipSum;		    		/* checksum */
 	struct in_addr srcIp, dstIp;	/* source and dest address */
 };
 
 struct __attribute__((__packed__)) TcpHdr
 {
-	uint16_t thSport;
-    uint16_t thDport;
-    uint32_t thSeq;
-    uint32_t thAck;
-    uint8_t thX2:4;
-    uint8_t thOff:4;
-    uint8_t thFlags;
-    uint16_t thWin;
-    uint16_t thSum;
-    uint16_t thUrp;
+	uint16_t srcPort;
+    uint16_t dstPort;
+    uint32_t seqNum;
+    uint32_t ackNum;
+    uint8_t offset:4;
+	uint8_t reserved:4;
+	uint8_t flags;
+    uint16_t winSize;
+    uint16_t checkSum;
+    uint16_t urgPoint;
 };
 
 struct __attribute__((__packed__)) PseudoHdr
@@ -107,4 +117,4 @@ struct __attribute__((__packed__)) IcmpPacket
 	uint8_t data[10];
 };
 
-#endif // _PROTOCOL_H
+#endif

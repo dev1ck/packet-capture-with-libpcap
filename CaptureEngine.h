@@ -12,15 +12,16 @@ class CaptureEngine
 private:
     std::string _if_name;
     pcap_t* _pcap_handle;
+    pcap_dumper_t *_dumpert_t;
 public:
     CaptureEngine(const std::string& if_name);
     ~CaptureEngine();
-    void setting();
+    void setPromisc();
     void activate();
     void liveCaptureStart();
     void dumpCaptureStart(const std::string& path);
     static void PrintPcapVersion();
-    static void GetInterfaceInfo();
+    static void PrintNICInfo();
     
 };
 

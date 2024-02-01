@@ -1,80 +1,85 @@
 #include "ApplicationManager.h"
-#include "CaptureEngine.h"
 
 ApplicationManager::ApplicationManager(int argc, char* argv[]): _argc(argc), _argv(argv)
 {
-
-    if (argc < 2)
-    {
-        usage();
-        exit(0);
-    }
+    // if (argc < 2)
+    // {
+    //     usage();
+    //     exit(0);
+    // }
     parseOptions();
 }
 
 void ApplicationManager::parseOptions()
 {
     int opt;
-    while ((opt = getopt(_argc, _argv, "vid::")) != -1) //:: 두개 확실히 처리 필요
+    while ((opt = getopt(_argc, _argv, "hDi:w:")) != -1)
     {
         switch (opt)
         {
-            case 'v':
-            {
-                if (_argc != 2)
-                {
-                    usage();
-                }
-                CaptureEngine::PrintPcapVersion();
-                exit(0);
-            }
-            case 'i':
-            {
-                if (_argc != 2)
-                {
-                    usage();
-                }
-                CaptureEngine::GetInterfaceInfo();
-                exit(0);
-            }
-            case 'd':
-            {
-                if (optarg)
-                {
-                    _path = optarg;
-                }
-                _dump_mode = true;
-                break;
-            }
-            default:
-            {
+            case 'h':
                 usage();
                 exit(0);
-            }
+            case 'D':
+                if (_argc != 2)
+                {
+                    usage();
+                }
+                CaptureEngine::PrintNICInfo();
+                exit(0);
+            case 'i':
+                if (not optarg)
+                {
+                    usage();
+                    exit(0);
+                }
+                _if_name = optarg;
+                break;
+            case 'w':
+                if (not optarg)
+                {
+                    usage();
+                    exit(0);
+                }
+                _write_mode = true;
+                _path = optarg;
+                break;
+            default:
+                usage();
+                exit(0);
+                break;
         }
     }
-    // segemntation falt 해결 필요
-    _if_name = _argv[optind];
+}
+
+void ApplicationManager::setting()
+{   
+    _capture_engine = std::make_unique<CaptureEngine>(_if_name);
+    _capture_engine->setPromisc();
 }
 
 void ApplicationManager::start()
 {
-    CaptureEngine capture_engine(_if_name);
-    capture_engine.setting();
-
-    if (_dump_mode)
+    _capture_engine->activate();
+    if (_write_mode)
     {
-        capture_engine.dumpCaptureStart(_path);
+        
+        _capture_engine->dumpCaptureStart(_path);
     }
     else
     {
-        capture_engine.liveCaptureStart();
+        _capture_engine->liveCaptureStart();
     }
+}
+
+void ApplicationManager::stop()
+{
+    std::cout << "Stopping Dump..." << std::endl;
+    _capture_engine.reset();
 }
 
 void ApplicationManager::usage()
 {
-    std::cout << _argv[0] << " -i : 인터페이스 정보 출력\n";
-    std::cout << _argv[0] << " -v : pcap 버전 정보 출력\n";
-    std::cout << _argv[0] << " <ifname> [-d <path>] : dump 모드\n";
+    CaptureEngine::PrintPcapVersion();
+    std::cout << "Usage: dump [-vD] [-i interface] [-w file]\n";
 }
