@@ -7,6 +7,7 @@
 
 #include "CaptureEngine.h"
 
+
 class ApplicationManager
 {
 private:
@@ -14,7 +15,7 @@ private:
     char **_argv;
     std::string _if_name = "eth0";
     std::string _path;
-    bool _write_mode = false;
+    int mode = kCaptureTCP;
     std::unique_ptr<CaptureEngine> _capture_engine;
 public:
     ApplicationManager(int argc, char *argv[]);

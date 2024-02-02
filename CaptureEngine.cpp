@@ -52,9 +52,23 @@ void CaptureEngine::activate()
     }
 }
 
-void live_capture_handler(u_char *user, const struct pcap_pkthdr *header, const u_char *packet)
+
+void live_capture_handle(u_char *user, const struct pcap_pkthdr *header, const u_char *packet)
 {
-    auto result = parse_packet(header, packet);
+    int mode = *user;
+    std::optional<std::string> result;
+
+    switch (mode)
+    {
+        case kCaptureTCP:
+            result = parse_tcp_packet(header, packet);
+            break;
+        case kCaptureARP:
+            break;
+        case kCaptureHTTP:
+            result = parse_http_packet(header, packet);
+            break;
+    }
 
     if (result.has_value())
     {
@@ -62,9 +76,9 @@ void live_capture_handler(u_char *user, const struct pcap_pkthdr *header, const 
     }
 }
 
-void CaptureEngine::liveCaptureStart()
+void CaptureEngine::liveCaptureStart(int mode)
 {
-    pcap_loop(_pcap_handle, 0, live_capture_handler, nullptr);
+    pcap_loop(_pcap_handle, 0, live_capture_handle, reinterpret_cast<u_char *>(&mode));
 }
 
 void CaptureEngine::dumpCaptureStart(const std::string& path)
@@ -79,7 +93,6 @@ void CaptureEngine::dumpCaptureStart(const std::string& path)
     std::cout << "Dump Start" << std::endl;
     pcap_loop(_pcap_handle, 0, pcap_dump, reinterpret_cast<u_char *>(_dumpert_t));
 }
-
 
 void CaptureEngine::PrintPcapVersion()
 {

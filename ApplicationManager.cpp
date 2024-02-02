@@ -13,7 +13,7 @@ ApplicationManager::ApplicationManager(int argc, char* argv[]): _argc(argc), _ar
 void ApplicationManager::parseOptions()
 {
     int opt;
-    while ((opt = getopt(_argc, _argv, "hDi:w:")) != -1)
+    while ((opt = getopt(_argc, _argv, "hDi:w:t")) != -1)
     {
         switch (opt)
         {
@@ -41,7 +41,11 @@ void ApplicationManager::parseOptions()
                     usage();
                     exit(0);
                 }
-                _write_mode = true;
+                mode = kWriteMode;
+                _path = optarg;
+                break;
+            case 't':
+                mode = kCaptureHTTP;
                 _path = optarg;
                 break;
             default:
@@ -61,14 +65,13 @@ void ApplicationManager::setting()
 void ApplicationManager::start()
 {
     _capture_engine->activate();
-    if (_write_mode)
+    if (mode == kWriteMode)
     {
-        
         _capture_engine->dumpCaptureStart(_path);
     }
     else
     {
-        _capture_engine->liveCaptureStart();
+        _capture_engine->liveCaptureStart(mode);
     }
 }
 

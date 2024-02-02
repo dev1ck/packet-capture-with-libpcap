@@ -7,6 +7,13 @@
 
 #include "PacketParser.h"
 
+
+#define kCaptureALL 0
+#define kCaptureTCP 1
+#define kCaptureARP 2
+#define kCaptureHTTP 3
+#define kWriteMode 4
+
 class CaptureEngine
 {
 private:
@@ -18,7 +25,7 @@ public:
     ~CaptureEngine();
     void setPromisc();
     void activate();
-    void liveCaptureStart();
+    void liveCaptureStart(int mode);
     void dumpCaptureStart(const std::string& path);
     static void PrintPcapVersion();
     static void PrintNICInfo();

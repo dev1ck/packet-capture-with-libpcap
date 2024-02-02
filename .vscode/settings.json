@@ -65,6 +65,8 @@
         "__tuple": "cpp",
         "ios": "cpp",
         "locale": "cpp",
-        "queue": "cpp"
-    }
+        "queue": "cpp",
+        "__functional_base_03": "cpp"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }
