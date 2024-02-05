@@ -58,6 +58,24 @@ std::optional<std::string> parse_tcp_packet(const struct pcap_pkthdr *header, co
     return message;
 }
 
+std::optional<std::string> parse_arp_packet(const struct pcap_pkthdr *header, const u_char *packet)
+{
+    const struct ArpHdr *arp_hdr = reinterpret_cast<const struct ArpHdr*>(packet);
+  
+    if (ntohs(arp_hdr->arpOp) == kArpRequest)
+    {
+        message += "Request who-has " + format_ipv4_address(&arp_hdr->arpTip) 
+            + " tell " + format_ipv4_address(&arp_hdr->arpSip) + ", ";
+    }
+    else if (ntohs(arp_hdr->arpOp) == kArpReply)
+    {
+        message += "Reply " + format_ipv4_address(&arp_hdr->arpSip)
+            + " is-at " + format_mac_address(arp_hdr->arpSha) + ", ";
+    }
+    
+    return;
+}
+
 std::optional<std::string> parse_http_packet(const struct pcap_pkthdr *header, const u_char *packet)
 {
     if (not is_tcp_packet(packet))
@@ -72,6 +90,7 @@ std::optional<std::string> parse_http_packet(const struct pcap_pkthdr *header, c
     const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(
         reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
     const u_char *payload = reinterpret_cast<const u_char*>(tcp_hdr) + (tcp_hdr->offset * 4);
+    
 
     
 }

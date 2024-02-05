@@ -64,6 +64,7 @@ void live_capture_handle(u_char *user, const struct pcap_pkthdr *header, const u
             result = parse_tcp_packet(header, packet);
             break;
         case kCaptureARP:
+	    result = parse_arp_packet(header, packet);
             break;
         case kCaptureHTTP:
             result = parse_http_packet(header, packet);
