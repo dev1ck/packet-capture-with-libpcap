@@ -8,12 +8,10 @@
 #include <memory>
 
 #include "PacketParser.h"
-#include "SessionManager.h"
+#include "SessionData.h"
 
 
 #define kCaptureALL 0
-#define kCaptureTCP 1
-#define kCaptureARP 2
 #define kCaptureHTTP 3
 #define kWriteMode 4
 
@@ -28,7 +26,7 @@ private:
     std::string _if_name;
     pcap_t* _pcap_handle;
     pcap_dumper_t *_dumpert_t;
-    std::map<std::string, std::shared_ptr<SessionManager> _sessions;
+    std::map<SessionKey, std::shared_ptr<SessionData>> _sessions;
 public:
     CaptureEngine(const std::string& if_name);
     ~CaptureEngine();

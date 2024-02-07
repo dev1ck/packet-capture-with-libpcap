@@ -46,7 +46,6 @@ void ApplicationManager::parseOptions()
                 break;
             case 't':
                 mode = kCaptureHTTP;
-                _path = optarg;
                 break;
             default:
                 usage();

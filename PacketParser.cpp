@@ -1,8 +1,8 @@
 #include "PacketParser.h"
-#include "SessionManager.h"
+#include "SessionData.h"
 #include <optional>
 
-std::optional<std::string> parse_tcp_packet(const struct pcap_pkthdr *header, const u_char *packet)
+std::optional<std::string> parse_tcp_hdr(const struct pcap_pkthdr *header, const u_char *packet)
 {
     std::string message;
     message = format_timeval(header->ts) + ' ';
@@ -71,37 +71,55 @@ std::optional<std::string> parse_arp_packet(const struct pcap_pkthdr *header, co
     }
     else
     {
-        return nullopt;
+        return std::nullopt;
     }
     
     return message;
 }
 
-std::optional<std::string> parse_http_packet(const struct pcap_pkthdr *header, const u_char *packet, std::map<SessionKey, std::shared_ptr<SessionData>>*sessions)
+std::optional<std::string> parse_http_packet(const struct pcap_pkthdr *header, const u_char *packet, std::map<SessionKey, std::shared_ptr<SessionData>> *sessions)
 {
     const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(packet + sizeof(struct EtherHdr));
-    const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(
-        reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
+    const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
 
-    int tcp_size = ntohs(ip_hdr->ipLen) - (ip_hdr->ipHl * 4);
-    int payload_size = tcp_size - (tcp_hdr->offset * 4);
-    SessionKey session_key(ip_hdr->srcIp, tcp_hdr->srcPort, tcp_hdr->dstIp, ip_hdr->dstPort);
+    SessionKey session_key(ip_hdr->srcIp.s_addr, tcp_hdr->srcPort, ip_hdr->dstIp.s_addr, tcp_hdr->dstPort);
+
+    if (not reassemble_tcp_payload(header, packet, sessions, session_key))
+    {
+        return std::nullopt;
+    }
+
+    std::string buffer = (*sessions)[session_key]->getBufferAsString();
+    return buffer;
+
+
+}
+
+int reassemble_tcp_payload(const struct pcap_pkthdr *header, const u_char *packet, std::map<SessionKey, std::shared_ptr<SessionData>> *sessions, const SessionKey& session_key)
+{
+    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(packet + sizeof(struct EtherHdr));
+    const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
     
     if (tcp_hdr->flags & kSYN)
     {
-        (*sessions)[session_key] = make_shared<SessionData>(htonl(tcp_hdr->seqNum));
+        (*sessions)[session_key] = std::make_shared<SessionData>(ntohl(tcp_hdr->seqNum));
+        return 0;
     }
 
-
-    if (payload_size > 0)
+    if ((*sessions).count(session_key) == 0)
     {
-        vector<u_char> tcp_packet(tcp_size);
-        std::copy(tcp_hdr, tcp_hdr + tcp_size, tcp_packet.begin());
-
-        (*sessions)[session_key].vectorPacket.insert(std::move(tcp_packet));        
+        return 0;
     }
     
+    if(tcp_hdr->flags & (kFIN + kRST))
+    {
+        (*sessions).erase(session_key);
+        return 0;
+    }
+
+    (*sessions)[session_key]->insertPacket(header, packet);
     
+    return 1;
 }
 
 // std::optional<std::string> parse_icmp_packet()
@@ -114,22 +132,22 @@ int classify_protocol(const u_char *packet)
 {
     const struct EtherHdr *ether_hdr = reinterpret_cast<const struct EtherHdr*>(packet);
     
-    if (htons(ether_hdr->etherType) == kEtherTypeARP)
+    if (ntohs(ether_hdr->etherType) == kEtherTypeARP)
     {
         return kCaptureARP;
     }
-    if (htons(ether_hdr->etherType) != kEtherTypeIP)
+    if (ntohs(ether_hdr->etherType) != kEtherTypeIP)
     {
         return kUndefined;
     }
 
     const struct IpHdr *ip_header = reinterpret_cast<const struct IpHdr*>(packet + sizeof(struct EtherHdr));
-    if (ip_header->ipP != kIpTypeTcp)
+    if (ip_header->ipP == kIpTypeTcp)
     {
         return kCaptureTCP;
     }
 
-    return -1;
+    return kUndefined;
 }
 
 std::string format_timeval(struct timeval tv)

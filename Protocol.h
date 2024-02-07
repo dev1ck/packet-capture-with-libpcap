@@ -6,6 +6,7 @@
 
 #define kPacketMaxLen 4096
 #define kEthMaxLen 1514
+#define kMaxPayloadSize 1480
 #define kArpMaxLen 42
 #define kPseudoHeaderLen 12
 
@@ -74,8 +75,8 @@ struct __attribute__((__packed__)) TcpHdr
     uint16_t dstPort;
     uint32_t seqNum;
     uint32_t ackNum;
-    uint8_t offset:4;
 	uint8_t reserved:4;
+    uint8_t offset:4;
 	uint8_t flags;
     uint16_t winSize;
     uint16_t checkSum;

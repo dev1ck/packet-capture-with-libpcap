@@ -56,7 +56,7 @@ void CaptureEngine::activate()
 void live_capture_handle(u_char *user, const struct pcap_pkthdr *header, const u_char *packet)
 {
     CaptureData* data = reinterpret_cast<CaptureData*>(user);
-    std::optional<std::string> result = nullptr;
+    std::optional<std::string> result;
     int packet_type = classify_protocol(packet);
 
     if (data->mode == kCaptureALL or data->mode == packet_type)
@@ -64,7 +64,7 @@ void live_capture_handle(u_char *user, const struct pcap_pkthdr *header, const u
         switch (packet_type)
         {
             case kCaptureTCP:
-                result = parse_tcp_packet(header, packet);
+                result = parse_tcp_hdr(header, packet);
                 break;
             case kCaptureARP:
                 result = parse_arp_packet(header, packet);
@@ -72,7 +72,7 @@ void live_capture_handle(u_char *user, const struct pcap_pkthdr *header, const u
         }
     }
 
-    if (mode == kCaptureHTTP and packet_type == kCaptureTCP)
+    if (data->mode == kCaptureHTTP and packet_type == kCaptureTCP)
     {
         result = parse_http_packet(header, packet, data->sessions);
     }
@@ -85,6 +85,7 @@ void live_capture_handle(u_char *user, const struct pcap_pkthdr *header, const u
 
 void CaptureEngine::liveCaptureStart(int mode)
 {
+
     CaptureData data;
     data.mode = mode;
     data.sessions = &_sessions;
