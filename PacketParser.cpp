@@ -1,72 +1,72 @@
 #include "PacketParser.h"
 #include "SessionData.h"
-#include <optional>
 
-std::optional<std::string> parse_tcp_hdr(const struct pcap_pkthdr *header, const u_char *packet)
+
+std::optional<std::string> PacketParser::parse_tcp_hdr()
 {
-    std::string message;
-    message = format_timeval(header->ts) + ' ';
+    std::string result;
+    result = format_timeval(_header->ts) + ' ';
     
-    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(packet + sizeof(struct EtherHdr));
+    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
     const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(
         reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
 
-    message += format_ipv4_address(&ip_hdr->srcIp) + ":" + std::to_string(ntohs(tcp_hdr->srcPort)) + " > ";
-    message += format_ipv4_address(&ip_hdr->dstIp) + ":" + std::to_string(ntohs(tcp_hdr->dstPort)) + " ";
+    result += format_ipv4_address(&ip_hdr->srcIp) + ":" + std::to_string(ntohs(tcp_hdr->srcPort)) + " > ";
+    result += format_ipv4_address(&ip_hdr->dstIp) + ":" + std::to_string(ntohs(tcp_hdr->dstPort)) + " ";
     
-    message += "Flags [";
+    result += "Flags [";
 
     if (tcp_hdr->flags & kURG)
     {
-        message += 'U';
+        result += 'U';
     }
     if (tcp_hdr->flags & kACK)
     {
-        message += 'A';
+        result += 'A';
     }
     if (tcp_hdr->flags & kPSH)
     {
-        message += 'P';
+        result += 'P';
     }
     if (tcp_hdr->flags & kRST)
     {
-        message += 'R';
+        result += 'R';
     }
     if (tcp_hdr->flags & kSYN)
     {
-        message += 'S';
+        result += 'S';
     }
     if (tcp_hdr->flags & kFIN)
     {
-        message += 'F';
+        result += 'F';
     }
 
-    message += "], seq " + std::to_string(ntohl(tcp_hdr->seqNum)) + " ";
+    result += "], seq " + std::to_string(ntohl(tcp_hdr->seqNum)) + " ";
 
     if (tcp_hdr->flags & kACK)
     {
-        message += "ack " + std::to_string(ntohl(tcp_hdr->ackNum)) + " ";
+        result += "ack " + std::to_string(ntohl(tcp_hdr->ackNum)) + " ";
     }
 
-    message += "win "+ std::to_string(ntohs(tcp_hdr->winSize)) + ", ";
-    message += "length " + std::to_string(header->len);
+    result += "win "+ std::to_string(ntohs(tcp_hdr->winSize)) + ", ";
+    result += "length " + std::to_string(_header->len);
 
-    return message;
+    return result;
+
 }
-
-std::optional<std::string> parse_arp_packet(const struct pcap_pkthdr *header, const u_char *packet)
+std::optional<std::string> PacketParser::parse_arp_packet()
 {
-    const struct ArpHdr *arp_hdr = reinterpret_cast<const struct ArpHdr*>(packet + sizeof(EtherHdr));
+    const struct ArpHdr *arp_hdr = reinterpret_cast<const struct ArpHdr*>(_packet + sizeof(EtherHdr));
   
-    std::string message;
+    std::string result;
     if (ntohs(arp_hdr->arpOp) == kArpRequest)
     {
-        message += "Request who-has " + format_ipv4_address(&arp_hdr->arpTip) 
+        result += "Request who-has " + format_ipv4_address(&arp_hdr->arpTip) 
             + " tell " + format_ipv4_address(&arp_hdr->arpSip) + ", ";
     }
     else if (ntohs(arp_hdr->arpOp) == kArpReply)
     {
-        message += "Reply " + format_ipv4_address(&arp_hdr->arpSip)
+        result += "Reply " + format_ipv4_address(&arp_hdr->arpSip)
             + " is-at " + format_mac_address(arp_hdr->arpSha) + ", ";
     }
     else
@@ -74,44 +74,42 @@ std::optional<std::string> parse_arp_packet(const struct pcap_pkthdr *header, co
         return std::nullopt;
     }
     
-    return message;
-}
+    return result;
 
-std::optional<std::string> parse_http_packet(const struct pcap_pkthdr *header, const u_char *packet, std::map<SessionKey, std::shared_ptr<SessionData>> *sessions)
+}
+std::optional<std::string> PacketParser::parse_http_packet()
 {
-    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(packet + sizeof(struct EtherHdr));
-    const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
-    SessionKey session_key(ip_hdr->srcIp.s_addr, tcp_hdr->srcPort, ip_hdr->dstIp.s_addr, tcp_hdr->dstPort);
+    make_session_key();
 
     std::string result;
 
-    if (not reassemble_tcp_payload(header, packet, sessions, session_key))
+    if (not reassemble_tcp_payload())
     {
         return std::nullopt;
     }
 
-    auto headers = parse_http_header((*sessions)[session_key]->getBufferAsString());
-    if (not headers.has_value())
+    auto http_headers = parse_http_header((*_sessions)[_session_key]->getBufferAsString());
+    if (not http_headers.has_value())
     {
         return std::nullopt;
     }
 
-    uint32_t header_length = std::stoi((*headers)["Header-Length"]);
+    uint32_t header_length = std::stoi((*http_headers)["Header-Length"]);
     uint32_t content_length = 0;
 
-    if ((*headers).find("Content-Length") != (*headers).end())
+    if ((*http_headers).find("Content-Length") != (*http_headers).end())
     {
-        content_length = std::stoi((*headers)["Content-Length"]);
+        content_length = std::stoi((*http_headers)["Content-Length"]);
     }
    
-    if (header_length + content_length > (*sessions)[session_key]->size())
+    if (header_length + content_length > (*_sessions)[_session_key]->size())
     {
         return std::nullopt;
     }
 
-    (*sessions)[session_key]->pop(header_length);
+    (*_sessions)[_session_key]->pop(header_length);
     
-    for (const auto &header: headers.value())
+    for (const auto &header: http_headers.value())
     {
         result += header.first + " : " + header.second + "\n";
     }
@@ -119,18 +117,19 @@ std::optional<std::string> parse_http_packet(const struct pcap_pkthdr *header, c
     if (content_length > 0)
     {
         result += "-------------------------------------------\n";
-        result += parse_http_body(headers.value(), (*sessions)[session_key]->getBufferAsString(content_length), header->ts);
-        (*sessions)[session_key]->pop(content_length);
+        result += parse_http_body(http_headers.value(), (*_sessions)[_session_key]->getBufferAsString(content_length));
+        (*_sessions)[_session_key]->pop(content_length);
     }
 
     return result;
+
 }
 
-std::optional<std::map<std::string, std::string>> parse_http_header(const std::string &buffer)
+std::optional<std::map<std::string, std::string>> PacketParser::parse_http_header(const std::string &buffer)
 {
     std::istringstream stream(buffer);
     std::string line;
-    std::map<std::string, std::string> headers;
+    std::map<std::string, std::string> http_headers;
     uint32_t header_length = 0;
 
     if (not std::getline(stream, line))
@@ -150,10 +149,10 @@ std::optional<std::map<std::string, std::string>> parse_http_header(const std::s
         std::string method, path, version;
         iss >> method >> path >> version;
 
-        headers["Type"] = "Request";
-        headers["Method"] = method;
-        headers["Path"] = path;
-        headers["Version"] = version;
+        http_headers["Type"] = "Request";
+        http_headers["Method"] = method;
+        http_headers["Path"] = path;
+        http_headers["Version"] = version;
     }
     else if (std::regex_search(line, response_pattern))
     {
@@ -161,9 +160,9 @@ std::optional<std::map<std::string, std::string>> parse_http_header(const std::s
         std::string code, version;
         iss >> version >> code;
 
-        headers["Type"] = "Response";
-        headers["Version"] = version;
-        headers["Code"] = code;
+        http_headers["Type"] = "Response";
+        http_headers["Version"] = version;
+        http_headers["Code"] = code;
     }
     else
     {
@@ -187,10 +186,11 @@ std::optional<std::map<std::string, std::string>> parse_http_header(const std::s
             if (std::getline(header_line, header_value))
             {
                 header_value.erase(0, header_value.find_first_not_of(" "));
-                if (not header_value.empty() and header_value.back() == '\r') {
+                if (not header_value.empty() and header_value.back() == '\r')
+                {
                     header_value.pop_back();
                 }
-                headers[header_key] = header_value;
+                http_headers[header_key] = header_value;
             }
         }
     }
@@ -200,12 +200,12 @@ std::optional<std::map<std::string, std::string>> parse_http_header(const std::s
         return std::nullopt;
     }
 
-    headers["Header-Length"] = std::to_string(header_length);
-    return headers;
+    http_headers["Header-Length"] = std::to_string(header_length);
+    return http_headers;
 
 }
 
-std::string parse_http_body(const std::map<std::string, std::string> &headers, const std::string &buffer, const struct timeval &tv)
+std::string PacketParser::parse_http_body(const std::map<std::string, std::string> &http_headers, const std::string &buffer)
 {
     std::regex text_based_pattern(
         R"(text/.*|application/json|application/javascript|application/xml|application/xhtml\+xml)",
@@ -215,8 +215,8 @@ std::string parse_http_body(const std::map<std::string, std::string> &headers, c
         R"(image/.*|application/octet-stream)",
         std::regex_constants::ECMAScript | std::regex_constants::icase);
 
-    auto it = headers.find("Content-Type");
-    if (it == headers.end())
+    auto it = http_headers.find("Content-Type");
+    if (it == http_headers.end())
     {   
         return "Unknown type";
     }
@@ -242,7 +242,7 @@ std::string parse_http_body(const std::map<std::string, std::string> &headers, c
                     file_extension = ".gif";
                 }
             }   
-            std::string filename = path + format_timeval(tv) + file_extension; // 파일 이름 생성 방식은 조정 필요
+            std::string filename = path + format_timeval(_header->ts) + file_extension;
             std::ofstream file(filename, std::ios::binary);
             if (file.is_open())
             {
@@ -254,8 +254,8 @@ std::string parse_http_body(const std::map<std::string, std::string> &headers, c
         return "File not supported";
     }         
 
-    it = headers.find("Content-Encoding");
-    if (it != headers.end() and it->second == "gzip")
+    it = http_headers.find("Content-Encoding");
+    if (it != http_headers.end() and it->second == "gzip")
     {
         std::string decompress_data;
         codec::Gzip::Decompress(buffer, decompress_data);
@@ -266,63 +266,60 @@ std::string parse_http_body(const std::map<std::string, std::string> &headers, c
     return buffer;
 }
 
-
-int reassemble_tcp_payload(const struct pcap_pkthdr *header, const u_char *packet, std::map<SessionKey, std::shared_ptr<SessionData>> *sessions, const SessionKey& session_key)
+int PacketParser::reassemble_tcp_payload()
 {
-    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(packet + sizeof(struct EtherHdr));
+    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
     const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
     
     if (tcp_hdr->flags & kSYN)
     {
-        (*sessions)[session_key] = std::make_shared<SessionData>(ntohl(tcp_hdr->seqNum));
+        (*_sessions)[_session_key] = std::make_shared<SessionData>(ntohl(tcp_hdr->seqNum));
         return 0;
     }
 
-    if ((*sessions).count(session_key) == 0)
+    if ((*_sessions).count(_session_key) == 0)
     {
         return 0;
     }
     
     if(tcp_hdr->flags & (kFIN + kRST))
     {
-        (*sessions).erase(session_key);
+        (*_sessions).erase(_session_key);
         return 0;
     }
 
-    (*sessions)[session_key]->insertPacket(header, packet);
+    (*_sessions)[_session_key]->insertPacket(_header, _packet);
     
     return 1;
 }
 
-// std::optional<std::string> parse_icmp_packet()
-// {
-
-// }
-
-
-int classify_protocol(const u_char *packet)
+int PacketParser::classify_protocol()
 {
-    const struct EtherHdr *ether_hdr = reinterpret_cast<const struct EtherHdr*>(packet);
+    const struct EtherHdr *ether_hdr = reinterpret_cast<const struct EtherHdr*>(_packet);
     
     if (ntohs(ether_hdr->etherType) == kEtherTypeARP)
     {
         return kCaptureARP;
     }
-    if (ntohs(ether_hdr->etherType) != kEtherTypeIP)
+    else if (ntohs(ether_hdr->etherType) != kEtherTypeIP)
     {
         return kUndefined;
     }
 
-    const struct IpHdr *ip_header = reinterpret_cast<const struct IpHdr*>(packet + sizeof(struct EtherHdr));
+    const struct IpHdr *ip_header = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
     if (ip_header->ipP == kIpTypeTcp)
     {
         return kCaptureTCP;
+    }
+    else if (ip_header->ipP == kIpTypeICMP)
+    {
+        return kCaptureICMP;
     }
 
     return kUndefined;
 }
 
-std::string format_timeval(struct timeval tv)
+std::string PacketParser::format_timeval(struct timeval tv)
 {
     std::stringstream ss;
     char buffer[80];
@@ -337,7 +334,7 @@ std::string format_timeval(struct timeval tv)
     return ss.str();
 }
 
-std::string format_mac_address(const uint8_t *mac_addr)
+std::string PacketParser::format_mac_address(const uint8_t *mac_addr)
 {
     std::ostringstream stream;
     stream << std::hex << std::setfill('0');
@@ -353,10 +350,18 @@ std::string format_mac_address(const uint8_t *mac_addr)
     return stream.str();
 }
 
-std::string format_ipv4_address(const void *address)
+std::string PacketParser::format_ipv4_address(const void *address)
 {
     char str_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, address, str_ip, INET_ADDRSTRLEN);
 
     return std::string(str_ip);
+}
+
+void PacketParser::make_session_key()
+{
+    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
+    const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
+
+    _session_key = SessionKey(ip_hdr->srcIp.s_addr, tcp_hdr->srcPort, ip_hdr->dstIp.s_addr, tcp_hdr->dstPort);
 }

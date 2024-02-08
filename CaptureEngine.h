@@ -12,8 +12,8 @@
 
 
 #define kCaptureALL 0
-#define kCaptureHTTP 3
-#define kWriteMode 4
+#define kCaptureHTTP 4
+#define kWriteMode 5
 
 struct CaptureData {
     int mode;

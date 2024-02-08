@@ -47,6 +47,12 @@ void ApplicationManager::parseOptions()
             case 't':
                 mode = kCaptureHTTP;
                 break;
+            case 'r':
+                mode = kCaptureARP;
+                break;
+            case 'I':
+                mode = kCaptureICMP;
+                break;
             default:
                 usage();
                 exit(0);
@@ -83,5 +89,5 @@ void ApplicationManager::stop()
 void ApplicationManager::usage()
 {
     CaptureEngine::PrintPcapVersion();
-    std::cout << "Usage: dump [-vD] [-i interface] [-w file]\n";
+    std::cout << "Usage: dump [-hDtI] [-i interface] [-w file]\n";
 }
