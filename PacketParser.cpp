@@ -81,19 +81,191 @@ std::optional<std::string> parse_http_packet(const struct pcap_pkthdr *header, c
 {
     const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(packet + sizeof(struct EtherHdr));
     const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
-
     SessionKey session_key(ip_hdr->srcIp.s_addr, tcp_hdr->srcPort, ip_hdr->dstIp.s_addr, tcp_hdr->dstPort);
+
+    std::string result;
 
     if (not reassemble_tcp_payload(header, packet, sessions, session_key))
     {
         return std::nullopt;
     }
 
-    std::string buffer = (*sessions)[session_key]->getBufferAsString();
-    return buffer;
+    auto headers = parse_http_header((*sessions)[session_key]->getBufferAsString());
+    if (not headers.has_value())
+    {
+        return std::nullopt;
+    }
 
+    uint32_t header_length = std::stoi((*headers)["Header-Length"]);
+    uint32_t content_length = 0;
+
+    if ((*headers).find("Content-Length") != (*headers).end())
+    {
+        content_length = std::stoi((*headers)["Content-Length"]);
+    }
+   
+    if (header_length + content_length > (*sessions)[session_key]->size())
+    {
+        return std::nullopt;
+    }
+
+    (*sessions)[session_key]->pop(header_length);
+    
+    for (const auto &header: headers.value())
+    {
+        result += header.first + " : " + header.second + "\n";
+    }
+    
+    if (content_length > 0)
+    {
+        result += "-------------------------------------------\n";
+        result += parse_http_body(headers.value(), (*sessions)[session_key]->getBufferAsString(content_length), header->ts);
+        (*sessions)[session_key]->pop(content_length);
+    }
+
+    return result;
+}
+
+std::optional<std::map<std::string, std::string>> parse_http_header(const std::string &buffer)
+{
+    std::istringstream stream(buffer);
+    std::string line;
+    std::map<std::string, std::string> headers;
+    uint32_t header_length = 0;
+
+    if (not std::getline(stream, line))
+    {
+        return std::nullopt;   
+    }
+
+    header_length += line.length() + 1;
+
+    std::regex request_pattern("^(GET|POST|HEAD|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH|TRACE)\\s");
+    std::regex response_pattern("^HTTP/");
+
+
+    if (std::regex_search(line, request_pattern))
+    {
+        std::istringstream iss(line);
+        std::string method, path, version;
+        iss >> method >> path >> version;
+
+        headers["Type"] = "Request";
+        headers["Method"] = method;
+        headers["Path"] = path;
+        headers["Version"] = version;
+    }
+    else if (std::regex_search(line, response_pattern))
+    {
+        std::istringstream iss(line);
+        std::string code, version;
+        iss >> version >> code;
+
+        headers["Type"] = "Response";
+        headers["Version"] = version;
+        headers["Code"] = code;
+    }
+    else
+    {
+        return std::nullopt;
+    }
+
+    bool found_empty_line = false;
+    while (std::getline(stream, line))
+    {
+        header_length += line.length() + 1;
+        if (line == "\r")
+        {
+            found_empty_line = true;
+            break;
+        }
+
+        std::istringstream header_line(line);
+        std::string header_key, header_value;
+        if (std::getline(header_line, header_key, ':'))
+        {
+            if (std::getline(header_line, header_value))
+            {
+                header_value.erase(0, header_value.find_first_not_of(" "));
+                if (not header_value.empty() and header_value.back() == '\r') {
+                    header_value.pop_back();
+                }
+                headers[header_key] = header_value;
+            }
+        }
+    }
+
+    if (not found_empty_line)
+    {
+        return std::nullopt;
+    }
+
+    headers["Header-Length"] = std::to_string(header_length);
+    return headers;
 
 }
+
+std::string parse_http_body(const std::map<std::string, std::string> &headers, const std::string &buffer, const struct timeval &tv)
+{
+    std::regex text_based_pattern(
+        R"(text/.*|application/json|application/javascript|application/xml|application/xhtml\+xml)",
+        std::regex_constants::ECMAScript | std::regex_constants::icase);
+
+    std::regex binary_based_pattern(
+        R"(image/.*|application/octet-stream)",
+        std::regex_constants::ECMAScript | std::regex_constants::icase);
+
+    auto it = headers.find("Content-Type");
+    if (it == headers.end())
+    {   
+        return "Unknown type";
+    }
+
+    if (not std::regex_search(it->second, text_based_pattern))
+    {
+        if (std::regex_search(it->second, binary_based_pattern))
+        {
+            std::string file_extension = ".bin";
+            std::string path = "file/";
+            if (it->second.find("image/") != std::string::npos)
+            {
+                if (it->second.find("jpeg") != std::string::npos)
+                {
+                    file_extension = ".jpg";
+                }
+                else if (it->second.find("png") != std::string::npos)
+                {
+                    file_extension = ".png";
+                }
+                else if (it->second.find("gif") != std::string::npos)
+                {
+                    file_extension = ".gif";
+                }
+            }   
+            std::string filename = path + format_timeval(tv) + file_extension; // 파일 이름 생성 방식은 조정 필요
+            std::ofstream file(filename, std::ios::binary);
+            if (file.is_open())
+            {
+                file.write(buffer.data(), buffer.size());
+                file.close();
+                return "Saved File";
+            }
+        }   
+        return "File not supported";
+    }         
+
+    it = headers.find("Content-Encoding");
+    if (it != headers.end() and it->second == "gzip")
+    {
+        std::string decompress_data;
+        codec::Gzip::Decompress(buffer, decompress_data);
+
+        return decompress_data;
+    }
+
+    return buffer;
+}
+
 
 int reassemble_tcp_payload(const struct pcap_pkthdr *header, const u_char *packet, std::map<SessionKey, std::shared_ptr<SessionData>> *sessions, const SessionKey& session_key)
 {
@@ -155,14 +327,11 @@ std::string format_timeval(struct timeval tv)
     std::stringstream ss;
     char buffer[80];
 
-    // 초 단위 시간을 tm 구조체로 변환
     time_t nowtime = tv.tv_sec;
     struct tm *nowtm = localtime(&nowtime);
 
-    // tm 구조체를 "시:분:초" 형식으로 포맷
     strftime(buffer, sizeof(buffer), "%H:%M:%S", nowtm);
 
-    // 마이크로초 추가
     ss << buffer << "." << std::setfill('0') << std::setw(6) << tv.tv_usec;
 
     return ss.str();

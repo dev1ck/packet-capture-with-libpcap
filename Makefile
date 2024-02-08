@@ -1,9 +1,9 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -g
 TARGET = dump
-SRCS = main.cpp ApplicationManager.cpp CaptureEngine.cpp PacketParser.cpp SessionData.cpp
+SRCS = main.cpp ApplicationManager.cpp CaptureEngine.cpp PacketParser.cpp SessionData.cpp Gzip.cpp
 OBJS = $(SRCS:.cpp=.o)
-LDFLAGS = -lpcap
+LDFLAGS = -lpcap -lz
 
 $(TARGET): $(OBJS)
 	$(CXX) $(OBJS) -o $(TARGET) $(LDFLAGS)
