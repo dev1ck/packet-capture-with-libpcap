@@ -13,7 +13,7 @@ ApplicationManager::ApplicationManager(int argc, char* argv[]): _argc(argc), _ar
 void ApplicationManager::parseOptions()
 {
     int opt;
-    while ((opt = getopt(_argc, _argv, "hDI:w:tri")) != -1)
+    while ((opt = getopt(_argc, _argv, "hDI:w:tria")) != -1)
     {
         switch (opt)
         {
@@ -52,6 +52,9 @@ void ApplicationManager::parseOptions()
                 break;
             case 'i':
                 mode = kCaptureICMP;
+                break;
+            case 'a':
+                mode = kCaptureALL;
                 break;
             default:
                 usage();

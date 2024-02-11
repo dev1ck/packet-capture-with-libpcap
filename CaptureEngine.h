@@ -3,9 +3,13 @@
 
 #include <string>
 #include <iostream>
-#include <pcap/pcap.h>
 #include <map>
 #include <memory>
+#include <thread>
+#include <chrono>
+
+#include <pcap/pcap.h>
+#include <sys/time.h>
 
 #include "PacketParser.h"
 #include "SessionData.h"
@@ -27,6 +31,8 @@ private:
     pcap_t* _pcap_handle;
     pcap_dumper_t *_dumpert_t;
     std::map<SessionKey, std::shared_ptr<SessionData>> _sessions;
+    void checkSessionThread();
+    struct timeval getCurrentTimeval();
 public:
     CaptureEngine(const std::string& if_name);
     ~CaptureEngine();
@@ -36,7 +42,6 @@ public:
     void dumpCaptureStart(const std::string& path);
     static void PrintPcapVersion();
     static void PrintNICInfo();
-    
 };
 
 #endif

@@ -28,6 +28,10 @@ public:
     void push(const u_char *payload_locate, uint32_t payload_size);
     void pop(uint32_t size_arg);
     uint32_t size();
+    struct timeval getLastPacketTime()
+    {
+        return _last_packet_time;
+    }
 };
 
 #endif
