@@ -21,6 +21,14 @@
 #define kIpTypeICMP 0x01
 #define kIpTypeTcp 0x06
 
+// ICMP type
+#define kIcmpTypeEchoReply 0x00
+#define kIcmpTypeUnreachable 0x03
+#define kIcmpTypeEchoReq 0x08
+#define kIcmpTypeTimeExceeded 0x0B
+
+
+
 // IP 헤더 상수
 #define kRF 0x8000            /* reserved fragment flag */
 #define kDF 0x4000            /* dont fragment flag */

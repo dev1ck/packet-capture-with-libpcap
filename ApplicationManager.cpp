@@ -13,7 +13,7 @@ ApplicationManager::ApplicationManager(int argc, char* argv[]): _argc(argc), _ar
 void ApplicationManager::parseOptions()
 {
     int opt;
-    while ((opt = getopt(_argc, _argv, "hDi:w:t")) != -1)
+    while ((opt = getopt(_argc, _argv, "hDI:w:tri")) != -1)
     {
         switch (opt)
         {
@@ -27,7 +27,7 @@ void ApplicationManager::parseOptions()
                 }
                 CaptureEngine::PrintNICInfo();
                 exit(0);
-            case 'i':
+            case 'I':
                 if (not optarg)
                 {
                     usage();
@@ -50,7 +50,7 @@ void ApplicationManager::parseOptions()
             case 'r':
                 mode = kCaptureARP;
                 break;
-            case 'I':
+            case 'i':
                 mode = kCaptureICMP;
                 break;
             default:
@@ -89,5 +89,5 @@ void ApplicationManager::stop()
 void ApplicationManager::usage()
 {
     CaptureEngine::PrintPcapVersion();
-    std::cout << "Usage: dump [-hDtI] [-i interface] [-w file]\n";
+    std::cout << "Usage: dump [-hDti] [-I interface] [-w file]\n";
 }

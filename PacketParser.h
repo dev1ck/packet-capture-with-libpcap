@@ -48,6 +48,7 @@ public:
     std::optional<std::string> parse_tcp_hdr();
     std::optional<std::string> parse_arp_packet();
     std::optional<std::string> parse_http_packet();
+    std::optional<std::string> parse_icmp_packet();
     int classify_protocol();
 };
 

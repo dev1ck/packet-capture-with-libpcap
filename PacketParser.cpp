@@ -266,6 +266,42 @@ std::string PacketParser::parse_http_body(const std::map<std::string, std::strin
     return buffer;
 }
 
+std::optional<std::string> PacketParser::parse_icmp_packet()
+{
+    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
+    const struct IcmpHdr *icmp_hdr = reinterpret_cast<const struct IcmpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
+//12:34:56.789012 IP 192.168.1.100 > 192.168.1.1: ICMP echo request, id 1234, seq 1, length 64
+//12:34:56.789987 IP 192.168.1.1 > 192.168.1.100: ICMP echo reply, id 1234, seq 1, length 64
+
+    std::string result;
+    result = format_timeval(_header->ts) + " IP ";
+    result += format_ipv4_address(&ip_hdr->srcIp) + " > ";
+    result += format_ipv4_address(&ip_hdr->dstIp) + " ICMP ";
+
+    switch(icmp_hdr->icmpType)
+    {
+        case kIcmpTypeEchoReply:
+            result += "echo reply, ";
+            break;
+        case kIcmpTypeEchoReq:
+            result += "echo request, ";
+            break;
+        case kIcmpTypeTimeExceeded:
+            result += "time exceeded, code " + std::to_string(icmp_hdr->icmpCode) + ", ";
+            break;
+        case kIcmpTypeUnreachable:
+            result += "destination unreachable, code " +  std::to_string(icmp_hdr->icmpCode) + ", ";
+            break;
+        default:
+            return std::nullopt;
+    }
+
+    uint16_t icmp_len = ntohs(ip_hdr->ipLen) - (ip_hdr->ipHl * 4);
+    result += "id " + std::to_string(ntohs(icmp_hdr->icmpId)) + ", seq " + std::to_string(ntohs(icmp_hdr->icmpSeq)) + ", length " + std::to_string(icmp_len);
+
+    return result;
+}
+
 int PacketParser::reassemble_tcp_payload()
 {
     const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
