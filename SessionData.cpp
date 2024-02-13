@@ -38,6 +38,11 @@ void SessionData::insertPacket(const struct pcap_pkthdr *header, const u_char *p
 
 void SessionData::push(const u_char *payload_locate, uint32_t payload_size)
 {
+    if (_rb_max - size() < payload_size)
+    {
+        throw std::runtime_error("Insufficient space in buffer");
+    }
+
     if (_rb_head + payload_size <= _rb_max)
     {
         std::copy(payload_locate, payload_locate + payload_size, payload.begin() + _rb_head);
@@ -109,14 +114,7 @@ std::string SessionData::getBufferAsString(uint32_t size_arg)
 
 uint32_t SessionData::size()
 {
-    if (_rb_head >= _rb_tail)
-    {
-        return _rb_head - _rb_tail;
-    }
-    else
-    {
-        return (_rb_max - _rb_tail) + _rb_head;
-    }
+    return _rb_head >= _rb_tail ? _rb_head - _rb_tail : (_rb_max - _rb_tail) + _rb_head;
 }
 
 bool SessionData::Compare(const std::pair<uint32_t, std::vector<unsigned char>>& a, const std::pair<uint32_t, std::vector<unsigned char>>& b)

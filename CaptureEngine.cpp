@@ -114,6 +114,7 @@ void CaptureEngine::dumpCaptureStart(const std::string& path)
     pcap_loop(_pcap_handle, 0, pcap_dump, reinterpret_cast<u_char *>(_dumpert_t));
 }
 
+
 void CaptureEngine::PrintPcapVersion()
 {
     std::cout << pcap_lib_version() << '\n';
@@ -137,41 +138,41 @@ void CaptureEngine::PrintNICInfo()
     pcap_freealldevs(alldevs);
 }
 
-void CaptureEngine::checkSessionThread()
-{
-    for(;;)
-    {
-        if (_sessions.size() != 0)
-        {
-            struct timeval now = getCurrentTimeval();
-            std::vector<SessionKey> keys_to_remove;
-            for (const auto& session : _sessions)
-            {
-                long long elapsed_time = now.tv_sec - session.second->getLastPacketTime().tv_sec;
+// void CaptureEngine::checkSessionThread()
+// {
+//     for(;;)
+//     {
+//         if (_sessions.size() != 0)
+//         {
+//             struct timeval now = getCurrentTimeval();
+//             std::vector<SessionKey> keys_to_remove;
+//             for (const auto& session : _sessions)
+//             {
+//                 long long elapsed_time = now.tv_sec - session.second->getLastPacketTime().tv_sec;
 
-                if (elapsed_time >= 60)
-                {
-                    keys_to_remove.push_back(session.first);
-                }
-            }
+//                 if (elapsed_time >= 240)
+//                 {
+//                     keys_to_remove.push_back(session.first);
+//                 }
+//             }
 
-            for (const auto& key : keys_to_remove)
-            {
-                _sessions.erase(key);
-            }
+//             for (const auto& key : keys_to_remove)
+//             {
+//                 _sessions.erase(key);
+//             }
             
-        }
-        std::this_thread::sleep_for(std::chrono::seconds(30));
-    }
-}
+//         }
+//         std::this_thread::sleep_for(std::chrono::seconds(60));
+//     }
+// }
 
-struct::timeval CaptureEngine::getCurrentTimeval()
-{
-    struct timeval tv;
-    std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()
-    );
-    tv.tv_sec = ms.count() / 1000;
-    tv.tv_usec = (ms.count() % 1000) * 1000;
-    return tv;
-}
+// struct::timeval CaptureEngine::getCurrentTimeval()
+// {
+//     struct timeval tv;
+//     std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+//         std::chrono::system_clock::now().time_since_epoch()
+//     );
+//     tv.tv_sec = ms.count() / 1000;
+//     tv.tv_usec = (ms.count() % 1000) * 1000;
+//     return tv;
+// }

@@ -2,11 +2,6 @@
 
 ApplicationManager::ApplicationManager(int argc, char* argv[]): _argc(argc), _argv(argv)
 {
-    // if (argc < 2)
-    // {
-    //     usage();
-    //     exit(0);
-    // }
     parseOptions();
 }
 

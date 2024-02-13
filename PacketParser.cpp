@@ -120,11 +120,11 @@ std::optional<std::string> PacketParser::parse_http_packet()
     {
         result += "-------------------------------------------\n";
         result += parse_http_body(http_headers.value(), (*_sessions)[_session_key]->getBufferAsString(content_length));
+        result += "-------------------------------------------\n";
         (*_sessions)[_session_key]->pop(content_length);
     }
 
     return result;
-
 }
 
 std::optional<std::map<std::string, std::string>> PacketParser::parse_http_header(const std::string &buffer)
@@ -139,11 +139,11 @@ std::optional<std::map<std::string, std::string>> PacketParser::parse_http_heade
         return std::nullopt;   
     }
 
+    // line 길이 + 1(\n) header_length에 저장
     header_length += line.length() + 1;
 
     std::regex request_pattern("^(GET|POST|HEAD|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH|TRACE)\\s");
     std::regex response_pattern("^HTTP/");
-
 
     if (std::regex_search(line, request_pattern))
     {
@@ -168,6 +168,7 @@ std::optional<std::map<std::string, std::string>> PacketParser::parse_http_heade
     }
     else
     {
+        (*_sessions).erase(_session_key);
         return std::nullopt;
     }
 
@@ -358,12 +359,12 @@ int PacketParser::classify_protocol()
 std::string PacketParser::format_timeval(struct timeval tv)
 {
     std::stringstream ss;
-    char buffer[80];
+    char buffer[9];
 
-    time_t nowtime = tv.tv_sec;
-    struct tm *nowtm = localtime(&nowtime);
+    time_t now_time = tv.tv_sec;
+    struct tm *now_tm = localtime(&now_time);
 
-    strftime(buffer, sizeof(buffer), "%H:%M:%S", nowtm);
+    strftime(buffer, sizeof(buffer), "%H:%M:%S", now_tm);
 
     ss << buffer << "." << std::setfill('0') << std::setw(6) << tv.tv_usec;
 
