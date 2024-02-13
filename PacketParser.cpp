@@ -59,15 +59,17 @@ std::optional<std::string> PacketParser::parse_arp_packet()
     const struct ArpHdr *arp_hdr = reinterpret_cast<const struct ArpHdr*>(_packet + sizeof(EtherHdr));
   
     std::string result;
+    result = format_timeval(_header->ts) + ' ';
+
     if (ntohs(arp_hdr->arpOp) == kArpRequest)
     {
         result += "Request who-has " + format_ipv4_address(&arp_hdr->arpTip) 
-            + " tell " + format_ipv4_address(&arp_hdr->arpSip) + ", ";
+            + " tell " + format_ipv4_address(&arp_hdr->arpSip);
     }
     else if (ntohs(arp_hdr->arpOp) == kArpReply)
     {
         result += "Reply " + format_ipv4_address(&arp_hdr->arpSip)
-            + " is-at " + format_mac_address(arp_hdr->arpSha) + ", ";
+            + " is-at " + format_mac_address(arp_hdr->arpSha);
     }
     else
     {
@@ -270,8 +272,6 @@ std::optional<std::string> PacketParser::parse_icmp_packet()
 {
     const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
     const struct IcmpHdr *icmp_hdr = reinterpret_cast<const struct IcmpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
-//12:34:56.789012 IP 192.168.1.100 > 192.168.1.1: ICMP echo request, id 1234, seq 1, length 64
-//12:34:56.789987 IP 192.168.1.1 > 192.168.1.100: ICMP echo reply, id 1234, seq 1, length 64
 
     std::string result;
     result = format_timeval(_header->ts) + " IP ";
