@@ -95,8 +95,8 @@ void CaptureEngine::liveCaptureStart(int mode)
     data.mode = mode;
     data.sessions = &_sessions;
 
-    std::thread sessions_cheack_thread(&CaptureEngine::checkSessionThread, this);
-    sessions_cheack_thread.detach();
+    // std::thread sessions_cheack_thread(&CaptureEngine::checkSessionThread, this);
+    // sessions_cheack_thread.detach();
 
     pcap_loop(_pcap_handle, 0, live_capture_handle, reinterpret_cast<u_char *>(&data));
 }

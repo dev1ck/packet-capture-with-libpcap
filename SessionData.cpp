@@ -45,14 +45,14 @@ void SessionData::push(const u_char *payload_locate, uint32_t payload_size)
 
     if (_rb_head + payload_size <= _rb_max)
     {
-        std::copy(payload_locate, payload_locate + payload_size, payload.begin() + _rb_head);
+        std::copy(payload_locate, payload_locate + payload_size, _payload.begin() + _rb_head);
         _rb_head += payload_size;
     }
     else
     {
         int remaining_size = _rb_max - _rb_head;
-        std::copy(payload_locate, payload_locate + remaining_size, payload.begin() + _rb_head);
-        std::copy(payload_locate + remaining_size, payload_locate + payload_size, payload.begin());
+        std::copy(payload_locate, payload_locate + remaining_size, _payload.begin() + _rb_head);
+        std::copy(payload_locate + remaining_size, payload_locate + payload_size, _payload.begin());
         _rb_head = payload_size - remaining_size;
     }
     _next_seq += payload_size;
@@ -79,12 +79,12 @@ std::string SessionData::getBufferAsString()
 {
     if (_rb_head >= _rb_tail)
     {
-        return std::string(payload.begin() + _rb_tail, payload.begin() + _rb_head);
+        return std::string(_payload.begin() + _rb_tail, _payload.begin() + _rb_head);
     }
     else
     {
-        std::string front(payload.begin() + _rb_tail, payload.end());
-        std::string back(payload.begin(), payload.begin() + _rb_head);
+        std::string front(_payload.begin() + _rb_tail, _payload.end());
+        std::string back(_payload.begin(), _payload.begin() + _rb_head);
 
         front.append(back);
         return front;
@@ -100,15 +100,15 @@ std::string SessionData::getBufferAsString(uint32_t size_arg)
 
     if (_rb_tail + size_arg >= _rb_max)
     {
-        std::string front(payload.begin() + _rb_tail, payload.end());
-        std::string back(payload.begin(), payload.begin() + (size_arg - _rb_tail));
+        std::string front(_payload.begin() + _rb_tail, _payload.end());
+        std::string back(_payload.begin(), _payload.begin() + (size_arg - _rb_tail));
 
         front.append(back);
         return front;
     }
     else
     {
-        return std::string(payload.begin() + _rb_tail, payload.begin() + (_rb_tail + size_arg));
+        return std::string(_payload.begin() + _rb_tail, _payload.begin() + (_rb_tail + size_arg));
     }
 }
 

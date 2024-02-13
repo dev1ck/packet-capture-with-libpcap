@@ -31,8 +31,8 @@ private:
     pcap_t* _pcap_handle;
     pcap_dumper_t *_dumpert_t;
     std::map<SessionKey, std::shared_ptr<SessionData>> _sessions;
-    void checkSessionThread();
-    struct timeval getCurrentTimeval();
+    // void checkSessionThread();
+    // struct timeval getCurrentTimeval();
 public:
     CaptureEngine(const std::string& if_name);
     ~CaptureEngine();

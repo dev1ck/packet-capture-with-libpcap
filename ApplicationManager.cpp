@@ -36,20 +36,20 @@ void ApplicationManager::parseOptions()
                     usage();
                     exit(0);
                 }
-                mode = kWriteMode;
+                _mode = kWriteMode;
                 _path = optarg;
                 break;
             case 't':
-                mode = kCaptureHTTP;
+                _mode = kCaptureHTTP;
                 break;
             case 'r':
-                mode = kCaptureARP;
+                _mode = kCaptureARP;
                 break;
             case 'i':
-                mode = kCaptureICMP;
+                _mode = kCaptureICMP;
                 break;
             case 'a':
-                mode = kCaptureALL;
+                _mode = kCaptureALL;
                 break;
             default:
                 usage();
@@ -68,13 +68,13 @@ void ApplicationManager::setting()
 void ApplicationManager::start()
 {
     _capture_engine->activate();
-    if (mode == kWriteMode)
+    if (_mode == kWriteMode)
     {
         _capture_engine->dumpCaptureStart(_path);
     }
     else
     {
-        _capture_engine->liveCaptureStart(mode);
+        _capture_engine->liveCaptureStart(_mode);
     }
 }
 

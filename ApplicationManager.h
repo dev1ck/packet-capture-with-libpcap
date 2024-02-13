@@ -15,7 +15,7 @@ private:
     char **_argv;
     std::string _if_name = "eth0";
     std::string _path;
-    int mode = kCaptureTCP;
+    int _mode = kCaptureTCP;
     std::unique_ptr<CaptureEngine> _capture_engine;
 public:
     ApplicationManager(int argc, char *argv[]);

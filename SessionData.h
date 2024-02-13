@@ -16,8 +16,8 @@ private:
     uint32_t _rb_tail = 0;
     uint32_t _rb_max = 16384; // 16KB
     struct timeval _last_packet_time;
-    static bool Compare(const std::pair<uint32_t, std::vector<unsigned char>>& a, const std::pair<uint32_t, std::vector<unsigned char>>& b);
-    std::vector<u_char> payload = std::vector<u_char>(_rb_max);
+    static bool Compare(const std::pair<uint32_t, std::vector<u_char>>& a, const std::pair<uint32_t, std::vector<u_char>>& b);
+    std::vector<u_char> _payload = std::vector<u_char>(_rb_max);
     std::priority_queue<std::pair<uint32_t, std::vector<u_char>>, std::vector<std::pair<uint32_t, std::vector<u_char>>>, decltype(&Compare)> _min_heap;
 
 public:
