@@ -4,20 +4,20 @@
 
 #include "ApplicationManager.h"
 
-std::unique_ptr<ApplicationManager> gAppManager;
+ApplicationManager gAppManager;
 
 void signal_handler(int signum) {
-    gAppManager->stop();
+    gAppManager.stop();
     exit(signum);
 }
 
 int main(int argc, char* argv[])
 {
-    gAppManager = std::make_unique<ApplicationManager>(argc, argv);
-    gAppManager->setting();
+    gAppManager = ApplicationManager(argc, argv);
+    gAppManager.setting();
 
     signal(SIGINT, signal_handler); 
-    gAppManager->start();
+    gAppManager.start();
     
     return 0;
 }

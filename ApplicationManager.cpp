@@ -61,27 +61,27 @@ void ApplicationManager::parseOptions()
 
 void ApplicationManager::setting()
 {   
-    _capture_engine = std::make_unique<CaptureEngine>(_if_name);
-    _capture_engine->setPromisc();
+    _capture_engine = CaptureEngine(_if_name);
+    _capture_engine.setPromisc();
 }
 
 void ApplicationManager::start()
 {
-    _capture_engine->activate();
+    _capture_engine.activate();
     if (_mode == kWriteMode)
     {
-        _capture_engine->dumpCaptureStart(_path);
+        _capture_engine.dumpCaptureStart(_path);
     }
     else
     {
-        _capture_engine->liveCaptureStart(_mode);
+        _capture_engine.liveCaptureStart(_mode);
     }
 }
 
 void ApplicationManager::stop()
 {
     std::cout << "Stopping Dump..." << std::endl;
-    _capture_engine.reset();
+    _capture_engine.stop();
 }
 
 void ApplicationManager::usage()

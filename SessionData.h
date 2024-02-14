@@ -14,7 +14,7 @@ private:
     uint32_t _next_seq;
     uint32_t _rb_head = 0;
     uint32_t _rb_tail = 0;
-    uint32_t _rb_max = 16384; // 16KB
+    uint32_t _rb_max = 1048576; // 1MB
     struct timeval _last_packet_time;
     static bool Compare(const std::pair<uint32_t, std::vector<u_char>>& a, const std::pair<uint32_t, std::vector<u_char>>& b);
     std::vector<u_char> _payload = std::vector<u_char>(_rb_max);

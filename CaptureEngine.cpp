@@ -9,15 +9,6 @@ CaptureEngine::CaptureEngine(const std::string& if_name): _if_name(if_name)
     }
 }
 
-CaptureEngine::~CaptureEngine()
-{   
-    if (_dumpert_t != nullptr)
-    {
-        pcap_dump_close(_dumpert_t);
-    }
-    pcap_close(_pcap_handle);
-}
-
 void CaptureEngine::setPromisc()
 {
     if (pcap_set_promisc(_pcap_handle, 1) != 0)
@@ -103,15 +94,15 @@ void CaptureEngine::liveCaptureStart(int mode)
 
 void CaptureEngine::dumpCaptureStart(const std::string& path)
 {
-    _dumpert_t = pcap_dump_open(_pcap_handle, path.c_str());
-    if (_dumpert_t == nullptr)
+    _dumper_t = pcap_dump_open(_pcap_handle, path.c_str());
+    if (_dumper_t == nullptr)
     {
         char err_message[100];
         sprintf(err_message, "\"%s\" 는 올바른 경로가 아닙니다.", path.c_str());
         throw std::runtime_error(err_message);
     }
     std::cout << "Dump Start" << std::endl;
-    pcap_loop(_pcap_handle, 0, pcap_dump, reinterpret_cast<u_char *>(_dumpert_t));
+    pcap_loop(_pcap_handle, 0, pcap_dump, reinterpret_cast<u_char *>(_dumper_t));
 }
 
 
@@ -137,6 +128,17 @@ void CaptureEngine::PrintNICInfo()
     }
     pcap_freealldevs(alldevs);
 }
+
+void CaptureEngine::stop()
+{   
+    if (_dumper_t != nullptr)
+    {
+        pcap_dump_close(_dumper_t);
+    }
+    pcap_close(_pcap_handle);
+}
+
+
 
 // void CaptureEngine::checkSessionThread()
 // {

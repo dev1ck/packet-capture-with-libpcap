@@ -16,8 +16,9 @@ private:
     std::string _if_name = "eth0";
     std::string _path;
     int _mode = kCaptureTCP;
-    std::unique_ptr<CaptureEngine> _capture_engine;
+    CaptureEngine _capture_engine;
 public:
+    ApplicationManager(){};
     ApplicationManager(int argc, char *argv[]);
     void parseOptions();
     void setting();
