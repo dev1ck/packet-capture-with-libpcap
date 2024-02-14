@@ -87,5 +87,5 @@ void ApplicationManager::stop()
 void ApplicationManager::usage()
 {
     CaptureEngine::PrintPcapVersion();
-    std::cout << "Usage: dump [-hDti] [-I interface] [-w file]\n";
+    std::cout << "Usage: dump [-hDtria] [-I interface] [-w file]\n";
 }
