@@ -27,8 +27,6 @@
 #define kIcmpTypeEchoReq 0x08
 #define kIcmpTypeTimeExceeded 0x0B
 
-
-
 // IP 헤더 상수
 #define kRF 0x8000            /* reserved fragment flag */
 #define kDF 0x4000            /* dont fragment flag */
@@ -91,26 +89,6 @@ struct __attribute__((__packed__)) TcpHdr
     uint16_t urgPoint;
 };
 
-struct __attribute__((__packed__)) PseudoHdr
-{
-    struct in_addr srcIp, dstIp;
-    uint8_t reserved;
-    uint8_t protocolType;
-    uint16_t tcpTotalLength;
-};
-
-struct __attribute__((__packed__)) TcpPacket
-{
-    struct IpHdr ipHdr;
-    struct TcpHdr tcpHdr;
-};
-
-struct __attribute__((__packed__)) TcpCksumHdr
-{
-    struct PseudoHdr pseudoHdr;
-    struct TcpHdr tcpHdr;
-};
-
 struct __attribute__((__packed__)) IcmpHdr
 {
     uint8_t  icmpType;
@@ -120,10 +98,24 @@ struct __attribute__((__packed__)) IcmpHdr
 	uint16_t icmpSeq;
 };
 
-struct __attribute__((__packed__)) IcmpPacket
-{
-    struct IcmpHdr icmp;
-	uint8_t data[10];
-};
+// struct __attribute__((__packed__)) PseudoHdr
+// {
+//     struct in_addr srcIp, dstIp;
+//     uint8_t reserved;
+//     uint8_t protocolType;
+//     uint16_t tcpTotalLength;
+// };
+
+// struct __attribute__((__packed__)) TcpCksumHdr
+// {
+//     struct PseudoHdr pseudoHdr;
+//     struct TcpHdr tcpHdr;
+// };
+
+// struct __attribute__((__packed__)) IcmpPacket
+// {
+//     struct IcmpHdr icmp;
+// 	   uint8_t data[10];
+// };
 
 #endif
