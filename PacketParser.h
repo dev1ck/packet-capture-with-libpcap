@@ -21,10 +21,15 @@
 #include "SessionData.h"
 #include "Gzip.h"
 
-#define kCaptureTCP 1
-#define kCaptureARP 2
-#define kCaptureICMP 3
-#define kUndefined -1
+enum CaptureType
+{
+    UNDEFINED_TYPE = -1,
+    ALL_TYPE,
+    HTTP_TYPE,
+    TCP_TYPE,
+    ARP_TYPE,
+    ICMP_TYPE,
+};
 
 using SessionKey = std::tuple<uint32_t, uint16_t, uint32_t, uint16_t>;
 

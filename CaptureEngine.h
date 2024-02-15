@@ -14,10 +14,15 @@
 #include "PacketParser.h"
 #include "SessionData.h"
 
-
-#define kCaptureALL 0
-#define kCaptureHTTP 4
-#define kWriteMode 5
+// enum CaptureType
+// {
+//     UNDEFINED_TYPE = -1,
+//     ALL_TYPE,
+//     HTTP_TYPE,
+//     TCP_TYPE,
+//     ARP_TYPE,
+//     ICMP_TYPE,
+// };
 
 struct CaptureData {
     int mode;
@@ -40,9 +45,11 @@ public:
     void activate();
     void liveCaptureStart(int mode);
     void dumpCaptureStart(const std::string& path);
+    void offlineParseStart(const std::string& path, int mode);
     void stop();
     static void PrintPcapVersion();
     static void PrintNICInfo();
+    
 };
 
 #endif

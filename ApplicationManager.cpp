@@ -8,7 +8,7 @@ ApplicationManager::ApplicationManager(int argc, char* argv[]): _argc(argc), _ar
 void ApplicationManager::parseOptions()
 {
     int opt;
-    while ((opt = getopt(_argc, _argv, "hDI:w:tria")) != -1)
+    while ((opt = getopt(_argc, _argv, "hDI:W:R:tria")) != -1)
     {
         switch (opt)
         {
@@ -30,26 +30,35 @@ void ApplicationManager::parseOptions()
                 }
                 _if_name = optarg;
                 break;
-            case 'w':
+            case 'W':
                 if (not optarg)
                 {
                     usage();
                     exit(0);
                 }
-                _mode = kWriteMode;
+                _capture_mode = WRITE_MODE;
+                _path = optarg;
+                break;
+            case 'R':
+                if (not optarg)
+                {
+                    usage();
+                    exit(0);
+                }
+                _capture_mode = READ_MODE;
                 _path = optarg;
                 break;
             case 't':
-                _mode = kCaptureHTTP;
+                _packet_mode = HTTP_TYPE;
                 break;
             case 'r':
-                _mode = kCaptureARP;
+                _packet_mode = ARP_TYPE;
                 break;
             case 'i':
-                _mode = kCaptureICMP;
+                _packet_mode = ICMP_TYPE;
                 break;
             case 'a':
-                _mode = kCaptureALL;
+                _packet_mode = ALL_TYPE;
                 break;
             default:
                 usage();
@@ -62,19 +71,26 @@ void ApplicationManager::parseOptions()
 void ApplicationManager::setting()
 {   
     _capture_engine = CaptureEngine(_if_name);
-    _capture_engine.setPromisc();
+    if (_capture_mode != READ_MODE)
+    {
+        _capture_engine.setPromisc();
+    }
 }
 
 void ApplicationManager::start()
 {
     _capture_engine.activate();
-    if (_mode == kWriteMode)
+    if (_capture_mode == WRITE_MODE)
     {
         _capture_engine.dumpCaptureStart(_path);
     }
+    else if(_capture_mode == READ_MODE)
+    {
+        _capture_engine.offlineParseStart(_path, _packet_mode);
+    }
     else
     {
-        _capture_engine.liveCaptureStart(_mode);
+        _capture_engine.liveCaptureStart(_packet_mode);
     }
 }
 
@@ -87,5 +103,5 @@ void ApplicationManager::stop()
 void ApplicationManager::usage()
 {
     CaptureEngine::PrintPcapVersion();
-    std::cout << "Usage: dump [-hDtria] [-I interface] [-w file]\n";
+    std::cout << "Usage: dump [-hDtria] [-I interface] [-W file] [-R file]\n";
 }

@@ -120,7 +120,7 @@ std::optional<std::string> PacketParser::parse_http_packet()
     {
         result += "-------------------------------------------\n";
         result += parse_http_body(http_headers.value(), (*_sessions)[_session_key]->getBufferAsString(content_length));
-        result += "-------------------------------------------\n";
+        result += "\n-------------------------------------------\n";
         (*_sessions)[_session_key]->pop(content_length);
     }
 
@@ -333,27 +333,26 @@ int PacketParser::reassemble_tcp_payload()
 int PacketParser::classify_protocol()
 {
     const struct EtherHdr *ether_hdr = reinterpret_cast<const struct EtherHdr*>(_packet);
-    
     if (ntohs(ether_hdr->etherType) == kEtherTypeARP)
     {
-        return kCaptureARP;
+        return ARP_TYPE;
     }
     else if (ntohs(ether_hdr->etherType) != kEtherTypeIP)
     {
-        return kUndefined;
+        return UNDEFINED_TYPE;
     }
 
     const struct IpHdr *ip_header = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
     if (ip_header->ipP == kIpTypeTcp)
     {
-        return kCaptureTCP;
+        return TCP_TYPE;
     }
     else if (ip_header->ipP == kIpTypeICMP)
     {
-        return kCaptureICMP;
+        return ICMP_TYPE;
     }
 
-    return kUndefined;
+    return UNDEFINED_TYPE;
 }
 
 std::string PacketParser::format_timeval(struct timeval tv)

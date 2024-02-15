@@ -7,6 +7,12 @@
 
 #include "CaptureEngine.h"
 
+enum capture_mode
+{
+    LIVE_MODE,
+    READ_MODE,
+    WRITE_MODE
+};
 
 class ApplicationManager
 {
@@ -15,7 +21,8 @@ private:
     char **_argv;
     std::string _if_name = "eth0";
     std::string _path;
-    int _mode = kCaptureTCP;
+    int _capture_mode = LIVE_MODE;
+    int _packet_mode = TCP_TYPE;
     CaptureEngine _capture_engine;
 public:
     ApplicationManager(){};

@@ -44,7 +44,7 @@ void CaptureEngine::activate()
 }
 
 
-void live_capture_handle(u_char *user, const struct pcap_pkthdr *header, const u_char *packet)
+void capture_handle(u_char *user, const struct pcap_pkthdr *header, const u_char *packet)
 {
     CaptureData* data = reinterpret_cast<CaptureData*>(user);
     PacketParser packet_parser(header, packet, data->sessions);
@@ -53,23 +53,23 @@ void live_capture_handle(u_char *user, const struct pcap_pkthdr *header, const u
 
     int packet_type = packet_parser.classify_protocol();
 
-    if (data->mode == kCaptureALL or data->mode == packet_type)
+    if (data->mode == ALL_TYPE or data->mode == packet_type)
     {
         switch (packet_type)
         {
-            case kCaptureTCP:
+            case TCP_TYPE:
                 result = packet_parser.parse_tcp_hdr();
                 break;
-            case kCaptureARP:
+            case ARP_TYPE:
                 result = packet_parser.parse_arp_packet();
                 break;
-            case kCaptureICMP:
+            case ICMP_TYPE:
                 result = packet_parser.parse_icmp_packet();
                 break;
         }
     }
 
-    if (data->mode == kCaptureHTTP and packet_type == kCaptureTCP)
+    if (data->mode == HTTP_TYPE and packet_type == TCP_TYPE)
     {
         result = packet_parser.parse_http_packet();
     }
@@ -89,7 +89,7 @@ void CaptureEngine::liveCaptureStart(int mode)
     // std::thread sessions_cheack_thread(&CaptureEngine::checkSessionThread, this);
     // sessions_cheack_thread.detach();
 
-    pcap_loop(_pcap_handle, 0, live_capture_handle, reinterpret_cast<u_char *>(&data));
+    pcap_loop(_pcap_handle, 0, capture_handle, reinterpret_cast<u_char *>(&data));
 }
 
 void CaptureEngine::dumpCaptureStart(const std::string& path)
@@ -105,6 +105,22 @@ void CaptureEngine::dumpCaptureStart(const std::string& path)
     pcap_loop(_pcap_handle, 0, pcap_dump, reinterpret_cast<u_char *>(_dumper_t));
 }
 
+void CaptureEngine::offlineParseStart(const std::string& path, int mode)
+{
+    CaptureData data;
+    data.mode = mode;
+    data.sessions = &_sessions;
+    
+    char errbuf[PCAP_ERRBUF_SIZE];
+    _pcap_handle = pcap_open_offline(path.c_str(), errbuf);
+
+    if (_pcap_handle == nullptr)
+    {
+        throw std::runtime_error(errbuf);
+    }
+
+    pcap_loop(_pcap_handle, 0, capture_handle, reinterpret_cast<u_char *>(&data));
+}
 
 void CaptureEngine::PrintPcapVersion()
 {
