@@ -229,7 +229,7 @@ std::string PacketParser::parse_http_body(const std::map<std::string, std::strin
         if (std::regex_search(it->second, binary_based_pattern))
         {
             std::string file_extension = ".bin";
-            std::string path = "file/";
+            std::string path = "files/";
             if (it->second.find("image/") != std::string::npos)
             {
                 if (it->second.find("jpeg") != std::string::npos)
