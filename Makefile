@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -g
-TARGET = dump
+TARGET = cap
 SRCS = main.cpp ApplicationManager.cpp CaptureEngine.cpp PacketParser.cpp SessionData.cpp Gzip.cpp
 OBJS = $(SRCS:.cpp=.o)
 LDFLAGS = -lpcap -lz -pthread
