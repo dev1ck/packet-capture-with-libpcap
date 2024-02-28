@@ -83,7 +83,7 @@ void capture_handle(u_char *user, const struct pcap_pkthdr *header, const u_char
         {
             packetParser.setSSLKeyLog(data->keyLogFile);
         }
-        result = packetParser.parseHttpPacket();
+        result = packetParser.parseTcpPayload();
     }
 
     if (result.has_value())

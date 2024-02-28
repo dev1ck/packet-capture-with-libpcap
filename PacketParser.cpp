@@ -79,18 +79,46 @@ std::optional<std::string> PacketParser::parseArpPacket()
     return result;
 
 }
-std::optional<std::string> PacketParser::parseHttpPacket()
+std::optional<std::string> PacketParser::parseTcpPayload()
 {
     makeSessionKey();
-
-    std::string result;
 
     if (not reassembleTcpPayload())
     {
         return std::nullopt;
     }
 
+    if ((*_sessions)[_sessionKey]->getProtocol() == SessionProtocol::UNKNOWN)
+    {
+        auto protocol = classifyPayload();
+        if (not protocol.has_value())
+        {
+            return std::nullopt;
+        }
+        (*_sessions)[_sessionKey]->setProtocol(protocol.value());
+    }
     
+    switch ((*_sessions)[_sessionKey]->getProtocol())
+    {
+        case SessionProtocol::HTTP:
+        {
+            // HTTP Packet을 저장할 구조체 또는 class를 만들어 관리
+            return parseHttpPacket();
+            break;
+        }
+        case SessionProtocol::TLS:
+            // tls class를 만들어서 master key 계산
+            // 복호화 후 HTTP 패킷 여부 판단하여 http 파싱
+
+        break;
+        default:
+            return std::nullopt;
+    }
+}
+
+std::optional<std::string> PacketParser::parseHttpPacket()
+{
+    std::string result;
     auto httpHeaders = parseHttpHeader((*_sessions)[_sessionKey]->getBufferAsString());
     if (not httpHeaders.has_value())
     {
@@ -104,7 +132,7 @@ std::optional<std::string> PacketParser::parseHttpPacket()
     {
         contentLength = std::stoi((*httpHeaders)["Content-Length"]);
     }
-   
+
     uint32_t httpPacketSize = headerLength + contentLength;
 
     if (httpPacketSize > (*_sessions)[_sessionKey]->getBufferSize())
@@ -311,7 +339,7 @@ std::optional<std::string> PacketParser::parseIcmpPacket()
     return result;
 }
 
-int PacketParser::reassembleTcpPayload()
+bool PacketParser::reassembleTcpPayload()
 {
     const struct IpHdr *ipHdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
     const struct TcpHdr *tcpHdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ipHdr) + (ipHdr->ipHl * 4));
@@ -319,23 +347,26 @@ int PacketParser::reassembleTcpPayload()
     if (tcpHdr->flags & kSYN)
     {
         (*_sessions)[_sessionKey] = std::make_shared<SessionData>(ntohl(tcpHdr->seqNum));
-        return 0;
+        return false;
     }
 
     if ((*_sessions).count(_sessionKey) == 0)
     {
-        return 0;
+        return false;
     }
     
     if(tcpHdr->flags & (kFIN + kRST))
     {
         (*_sessions).erase(_sessionKey);
-        return 0;
+        return false;
     }
 
-    (*_sessions)[_sessionKey]->insertPacket(_header, _packet);
+    if ((*_sessions)[_sessionKey]->insertPacket(_header, _packet) == 0)
+    {
+        return false;
+    }
     
-    return 1;
+    return true;
 }
 
 int PacketParser::classifyProtocol()
@@ -423,4 +454,64 @@ uint32_t PacketParser::getSeqNum()
     {
         return 0;
     }
+}
+
+std::optional<SessionProtocol> PacketParser::classifyPayload()
+{
+    if (isHttpProtocol())
+    {
+        (*_sessions)[_sessionKey]->setProtocol(SessionProtocol::HTTP);
+        return SessionProtocol::HTTP;
+    }
+
+    if (_sslMode and isTlsProtocol())
+    {
+        (*_sessions)[_sessionKey]->setProtocol(SessionProtocol::TLS);
+        std::cout << "tls" << std::endl;
+        return SessionProtocol::TLS;
+    }
+    (*_sessions).erase(_sessionKey);
+    return std::nullopt;
+}
+
+bool PacketParser::isHttpProtocol()
+{
+    std::string buffer = (*_sessions)[_sessionKey]->getBufferAsString();
+
+    std::istringstream stream(buffer);
+    std::string line;
+    if (not std::getline(stream, line))
+    {
+        return false;
+    }
+
+    std::regex http_pattern("^(GET|POST|HEAD|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH|HTTP)");
+    if (std::regex_search(line, http_pattern))
+    {
+        return true;
+    }
+    return false;
+}
+
+bool PacketParser::isTlsProtocol()
+{
+    if ((*_sessions)[_sessionKey]->getBufferSize() < sizeof(struct TlsRecordHdr))
+    {
+        return false;
+    }
+
+    std::vector<u_char> buffer = (*_sessions)[_sessionKey]->getBuffer();
+    const struct TlsRecordHdr *tlsHdr = reinterpret_cast<const struct TlsRecordHdr*>(buffer.data());
+    
+    if (tlsHdr->contentType < SSL3_RT_CHANGE_CIPHER_SPEC or tlsHdr->contentType > TLS1_RT_HEARTBEAT)
+    {
+        return false;
+    }
+
+    if (ntohs(tlsHdr->version) < TLS1_VERSION or ntohs(tlsHdr->version) > TLS1_2_VERSION)
+    {
+        return false;
+    }
+
+    return true;
 }

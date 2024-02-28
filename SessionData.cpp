@@ -84,7 +84,7 @@ uint32_t RingBuffer::size()
 }
 
 
-void SessionData::insertPacket(const struct pcap_pkthdr *header, const u_char *packet)
+int SessionData::insertPacket(const struct pcap_pkthdr *header, const u_char *packet)
 {
     _lastPacketTime = header->ts;
     
@@ -96,7 +96,7 @@ void SessionData::insertPacket(const struct pcap_pkthdr *header, const u_char *p
 
     if (payloadSize == 0)
     {
-        return;
+        return 0;
     }
     // std::cout << "next seq : " << _nextSeq << " now seq : " << ntohl(tcpHdr->seqNum) << std::endl;
 
@@ -121,6 +121,7 @@ void SessionData::insertPacket(const struct pcap_pkthdr *header, const u_char *p
         std::copy(payloadLocate, payloadLocate + payloadSize, savedPayload.begin());
         _minHeap.push({ntohl(tcpHdr->seqNum), savedPayload});
     }
+    return payloadSize;
 }
 
 

@@ -41,6 +41,18 @@
 #define kACK 0x10
 #define kURG 0x20
 
+// SSL Record Type
+#define SSL3_RT_CHANGE_CIPHER_SPEC 0x14
+#define SSL3_RT_ALERT 0x15
+#define SSL3_RT_HANDSHAKE 0x16
+#define SSL3_RT_APPLICATION_DATA 0x17
+#define TLS1_RT_HEARTBEAT 0x18
+
+// SSL Version
+#define TLS1_VERSION 0x0301
+#define TLS1_1_VERSION 0x0302
+#define TLS1_2_VERSION 0x03030
+
 struct __attribute__((__packed__)) EtherHdr
 {
 	uint8_t  etherDhost[6];		/* destination eth addr	*/
@@ -98,6 +110,22 @@ struct __attribute__((__packed__)) IcmpHdr
 	uint16_t icmpSeq;
 };
 
+struct __attribute__((__packed__)) TlsRecordHdr
+{
+	uint8_t contentType;
+	uint16_t version;
+	uint16_t length;
+};
+
+struct __attribute__((__packed__)) ServerHello
+{
+
+};
+
+struct __attribute__((__packed__)) ClientHello
+{
+
+};
 // struct __attribute__((__packed__)) PseudoHdr
 // {
 //     struct in_addr srcIp, dstIp;

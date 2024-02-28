@@ -43,14 +43,17 @@ private:
     bool _sslMode = false;
     std::string _sslKeyLogFile = "";
 
+    std::optional<std::string> parseHttpPacket();
     std::optional<std::map<std::string, std::string>> parseHttpHeader(const std::string &buffer);
     std::string parseHttpBody(const std::map<std::string, std::string> &http_headers, const std::string &buffer);
-    int reassembleTcpPayload();
+    bool reassembleTcpPayload();
     std::string formatTimeval(struct timeval tv);
     std::string formatMacAddress(const uint8_t *macAddr);
     std::string formatIpV4Address(const void *address);
     void makeSessionKey();
-    int classifyPayload();
+    std::optional<SessionProtocol> classifyPayload();
+    bool isHttpProtocol();
+    bool isTlsProtocol();
 public:
     PacketParser(const struct pcap_pkthdr *header, const u_char *packet) : _header(header), _packet(packet) {}
     void setSessions(std::map<SessionKey, std::shared_ptr<SessionData>> *sessions) {_sessions = sessions;}
@@ -61,7 +64,7 @@ public:
     };
     std::optional<std::string> parseTcpHdr();
     std::optional<std::string> parseArpPacket();
-    std::optional<std::string> parseHttpPacket();
+    std::optional<std::string> parseTcpPayload();
     std::optional<std::string> parseIcmpPacket();
     int classifyProtocol();
     uint32_t getSeqNum();
