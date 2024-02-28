@@ -1,121 +1,128 @@
 #include "SessionData.h"
 #include <iostream>
 
-void SessionData::insertPacket(const struct pcap_pkthdr *header, const u_char *packet)
+
+void RingBuffer::push(const u_char *dataLocate, uint32_t dataSize)
 {
-    _last_packet_time = header->ts;
-    
-    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(packet + sizeof(struct EtherHdr));
-    const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
-    const u_char *payload_locate = reinterpret_cast<const u_char*>(tcp_hdr) + (tcp_hdr->offset * 4);
-
-    uint32_t payload_size = ntohs(ip_hdr->ipLen) - (ip_hdr->ipHl * 4) - (tcp_hdr->offset * 4);
-    
-    if (payload_size == 0)
-    {
-        return;
-    }
-
-    if (ntohl(tcp_hdr->seqNum) == _next_seq)
-    {
-        push(payload_locate, payload_size);
-    }
-    else
-    {
-        if (_min_heap.size() > 0 and _min_heap.top().first == _next_seq)
-        {
-            const auto &top = _min_heap.top().second;
-            push(top.data(), top.size());
-            _min_heap.pop();
-
-            insertPacket(header, packet);
-        }
-        std::vector<u_char> saved_payload(payload_size);
-        std::copy(payload_locate, payload_locate + payload_size, saved_payload.begin());
-        _min_heap.push({ntohl(tcp_hdr->seqNum), saved_payload});
-    }
-}
-
-void SessionData::push(const u_char *payload_locate, uint32_t payload_size)
-{
-    if (_rb_max - size() < payload_size)
+    if (max - size() < dataSize)
     {
         throw std::runtime_error("Insufficient space in buffer");
     }
 
-    if (_rb_head + payload_size <= _rb_max)
+    if (head + dataSize <= max)
     {
-        std::copy(payload_locate, payload_locate + payload_size, _payload.begin() + _rb_head);
-        _rb_head += payload_size;
+        std::copy(dataLocate, dataLocate + dataSize, buffer.begin() + head);
+        head += dataSize;
     }
     else
     {
-        int remaining_size = _rb_max - _rb_head;
-        std::copy(payload_locate, payload_locate + remaining_size, _payload.begin() + _rb_head);
-        std::copy(payload_locate + remaining_size, payload_locate + payload_size, _payload.begin());
-        _rb_head = payload_size - remaining_size;
+        int remainingSize = max - head;
+        std::copy(dataLocate, dataLocate + remainingSize, buffer.begin() + head);
+        std::copy(dataLocate + remainingSize, dataLocate + dataSize, buffer.begin());
+        head = dataSize - remainingSize;
     }
-    _next_seq += payload_size;
 }
 
-void SessionData::pop(uint32_t size_arg)
+void RingBuffer::pop(uint32_t sizeArg)
 {
-    if (size() < size_arg)
+    if (size() < sizeArg)
     {
         throw std::runtime_error("pop error");
     }
 
-    if ( _rb_tail + size_arg >= _rb_max)
+    if ( tail + sizeArg >= max)
     {
-        _rb_tail = (_rb_tail + size_arg) - _rb_max;
+        tail = (tail + sizeArg) - max;
     }
     else
     {
-        _rb_tail += size_arg;
+        tail += sizeArg;
     }
+
 }
 
-std::string SessionData::getBufferAsString()
+std::vector<u_char> RingBuffer::getBuffer()
 {
-    if (_rb_head >= _rb_tail)
+    if (head >= tail)
     {
-        return std::string(_payload.begin() + _rb_tail, _payload.begin() + _rb_head);
+        return std::vector<u_char>(buffer.begin() + tail, buffer.begin() + head);
     }
     else
     {
-        std::string front(_payload.begin() + _rb_tail, _payload.end());
-        std::string back(_payload.begin(), _payload.begin() + _rb_head);
-
-        front.append(back);
-        return front;
+        std::vector<u_char> result;
+        result.reserve(size());
+        result.insert(result.end(), buffer.begin() + tail, buffer.end());
+        result.insert(result.end(), buffer.begin(), buffer.begin() + head);
+        return result;
     }
 }
 
-std::string SessionData::getBufferAsString(uint32_t size_arg)
+std::vector<u_char> RingBuffer::getBuffer(uint32_t sizeArg)
 {
-    if (size() < size_arg)
+    if (size() < sizeArg)
     {
         throw std::runtime_error("Get Buffer Error");
     }
 
-    if (_rb_tail + size_arg >= _rb_max)
+    if (tail + sizeArg >= max)
     {
-        std::string front(_payload.begin() + _rb_tail, _payload.end());
-        std::string back(_payload.begin(), _payload.begin() + (size_arg - _rb_tail));
-
-        front.append(back);
-        return front;
+        std::vector<u_char> result;
+        result.reserve(sizeArg); // 최적화를 위해 필요한 크기를 미리 예약
+        result.insert(result.end(), buffer.begin() + tail, buffer.end());
+        result.insert(result.end(), buffer.begin(), buffer.begin() + (sizeArg - tail));
+        return result;
     }
     else
     {
-        return std::string(_payload.begin() + _rb_tail, _payload.begin() + (_rb_tail + size_arg));
+        return std::vector<u_char>(buffer.begin() + tail, buffer.begin() + (tail + sizeArg));
     }
 }
 
-uint32_t SessionData::size()
+uint32_t RingBuffer::size()
 {
-    return _rb_head >= _rb_tail ? _rb_head - _rb_tail : (_rb_max - _rb_tail) + _rb_head;
+    return head >= tail ? head - tail : (max - tail) + head;
 }
+
+
+void SessionData::insertPacket(const struct pcap_pkthdr *header, const u_char *packet)
+{
+    _lastPacketTime = header->ts;
+    
+    const struct IpHdr *ipHdr = reinterpret_cast<const struct IpHdr*>(packet + sizeof(struct EtherHdr));
+    const struct TcpHdr *tcpHdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ipHdr) + (ipHdr->ipHl * 4));
+    const u_char *payloadLocate = reinterpret_cast<const u_char*>(tcpHdr) + (tcpHdr->offset * 4);
+
+    uint32_t payloadSize = ntohs(ipHdr->ipLen) - (ipHdr->ipHl * 4) - (tcpHdr->offset * 4);
+
+    if (payloadSize == 0)
+    {
+        return;
+    }
+    // std::cout << "next seq : " << _nextSeq << " now seq : " << ntohl(tcpHdr->seqNum) << std::endl;
+
+    if (ntohl(tcpHdr->seqNum) == _nextSeq)
+    {
+        _ringBuffer.push(payloadLocate, payloadSize);
+        _nextSeq += payloadSize;
+    }
+    else
+    {
+        if (_minHeap.size() > 0 and _minHeap.top().first == _nextSeq)
+        {
+            
+            const auto &top = _minHeap.top().second;
+            _ringBuffer.push(top.data(), top.size());
+            _nextSeq += top.size();
+            _minHeap.pop();
+
+            insertPacket(header, packet);
+        }
+        std::vector<u_char> savedPayload(payloadSize);
+        std::copy(payloadLocate, payloadLocate + payloadSize, savedPayload.begin());
+        _minHeap.push({ntohl(tcpHdr->seqNum), savedPayload});
+    }
+}
+
 
 bool SessionData::Compare(const std::pair<uint32_t, std::vector<unsigned char>>& a, const std::pair<uint32_t, std::vector<unsigned char>>& b)
 {

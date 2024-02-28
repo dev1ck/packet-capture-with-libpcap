@@ -2,74 +2,74 @@
 #include "SessionData.h"
 
 
-std::optional<std::string> PacketParser::parse_tcp_hdr()
+std::optional<std::string> PacketParser::parseTcpHdr()
 {
     std::string result;
-    result = format_timeval(_header->ts) + ' ';
+    result = formatTimeval(_header->ts) + ' ';
     
-    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
-    const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(
-        reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
+    const struct IpHdr *ipHdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
+    const struct TcpHdr *tcpHdr = reinterpret_cast<const struct TcpHdr*>(
+        reinterpret_cast<const u_char*>(ipHdr) + (ipHdr->ipHl * 4));
 
-    result += format_ipv4_address(&ip_hdr->srcIp) + ":" + std::to_string(ntohs(tcp_hdr->srcPort)) + " > ";
-    result += format_ipv4_address(&ip_hdr->dstIp) + ":" + std::to_string(ntohs(tcp_hdr->dstPort)) + " ";
+    result += formatIpV4Address(&ipHdr->srcIp) + ":" + std::to_string(ntohs(tcpHdr->srcPort)) + " > ";
+    result += formatIpV4Address(&ipHdr->dstIp) + ":" + std::to_string(ntohs(tcpHdr->dstPort)) + " ";
     
     result += "Flags [";
 
-    if (tcp_hdr->flags & kURG)
+    if (tcpHdr->flags & kURG)
     {
         result += 'U';
     }
-    if (tcp_hdr->flags & kACK)
+    if (tcpHdr->flags & kACK)
     {
         result += 'A';
     }
-    if (tcp_hdr->flags & kPSH)
+    if (tcpHdr->flags & kPSH)
     {
         result += 'P';
     }
-    if (tcp_hdr->flags & kRST)
+    if (tcpHdr->flags & kRST)
     {
         result += 'R';
     }
-    if (tcp_hdr->flags & kSYN)
+    if (tcpHdr->flags & kSYN)
     {
         result += 'S';
     }
-    if (tcp_hdr->flags & kFIN)
+    if (tcpHdr->flags & kFIN)
     {
         result += 'F';
     }
 
-    result += "], seq " + std::to_string(ntohl(tcp_hdr->seqNum)) + " ";
+    result += "], seq " + std::to_string(ntohl(tcpHdr->seqNum)) + " ";
 
-    if (tcp_hdr->flags & kACK)
+    if (tcpHdr->flags & kACK)
     {
-        result += "ack " + std::to_string(ntohl(tcp_hdr->ackNum)) + " ";
+        result += "ack " + std::to_string(ntohl(tcpHdr->ackNum)) + " ";
     }
 
-    result += "win "+ std::to_string(ntohs(tcp_hdr->winSize)) + ", ";
+    result += "win "+ std::to_string(ntohs(tcpHdr->winSize)) + ", ";
     result += "length " + std::to_string(_header->len);
 
     return result;
 
 }
-std::optional<std::string> PacketParser::parse_arp_packet()
+std::optional<std::string> PacketParser::parseArpPacket()
 {
-    const struct ArpHdr *arp_hdr = reinterpret_cast<const struct ArpHdr*>(_packet + sizeof(EtherHdr));
+    const struct ArpHdr *arpHdr = reinterpret_cast<const struct ArpHdr*>(_packet + sizeof(EtherHdr));
   
     std::string result;
-    result = format_timeval(_header->ts) + ' ';
+    result = formatTimeval(_header->ts) + ' ';
 
-    if (ntohs(arp_hdr->arpOp) == kArpRequest)
+    if (ntohs(arpHdr->arpOp) == kArpRequest)
     {
-        result += "Request who-has " + format_ipv4_address(&arp_hdr->arpTip) 
-            + " tell " + format_ipv4_address(&arp_hdr->arpSip);
+        result += "Request who-has " + formatIpV4Address(&arpHdr->arpTip) 
+            + " tell " + formatIpV4Address(&arpHdr->arpSip);
     }
-    else if (ntohs(arp_hdr->arpOp) == kArpReply)
+    else if (ntohs(arpHdr->arpOp) == kArpReply)
     {
-        result += "Reply " + format_ipv4_address(&arp_hdr->arpSip)
-            + " is-at " + format_mac_address(arp_hdr->arpSha);
+        result += "Reply " + formatIpV4Address(&arpHdr->arpSip)
+            + " is-at " + formatMacAddress(arpHdr->arpSha);
     }
     else
     {
@@ -79,68 +79,76 @@ std::optional<std::string> PacketParser::parse_arp_packet()
     return result;
 
 }
-std::optional<std::string> PacketParser::parse_http_packet()
+std::optional<std::string> PacketParser::parseHttpPacket()
 {
-    make_session_key();
+    makeSessionKey();
 
     std::string result;
 
-    if (not reassemble_tcp_payload())
+    if (not reassembleTcpPayload())
     {
         return std::nullopt;
     }
 
-    auto http_headers = parse_http_header((*_sessions)[_session_key]->getBufferAsString());
-    if (not http_headers.has_value())
+    
+    auto httpHeaders = parseHttpHeader((*_sessions)[_sessionKey]->getBufferAsString());
+    if (not httpHeaders.has_value())
     {
         return std::nullopt;
     }
 
-    uint32_t header_length = std::stoi((*http_headers)["Header-Length"]);
-    uint32_t content_length = 0;
+    uint32_t headerLength = std::stoi((*httpHeaders)["Header-Length"]);
+    uint32_t contentLength = 0;
 
-    if ((*http_headers).find("Content-Length") != (*http_headers).end())
+    if ((*httpHeaders).find("Content-Length") != (*httpHeaders).end())
     {
-        content_length = std::stoi((*http_headers)["Content-Length"]);
+        contentLength = std::stoi((*httpHeaders)["Content-Length"]);
     }
    
-    if (header_length + content_length > (*_sessions)[_session_key]->size())
+    uint32_t httpPacketSize = headerLength + contentLength;
+
+    if (httpPacketSize > (*_sessions)[_sessionKey]->getBufferSize())
     {
         return std::nullopt;
     }
+    else if (httpPacketSize < (*_sessions)[_sessionKey]->getBufferSize())
+    {
+        (*_sessions).erase(_sessionKey);
+        return "Invalid Packet";
+    }
 
-    (*_sessions)[_session_key]->pop(header_length);
+    (*_sessions)[_sessionKey]->deleteBuffer(headerLength);
     
-    for (const auto &header: http_headers.value())
+    for (const auto &header: httpHeaders.value())
     {
         result += header.first + " : " + header.second + "\n";
     }
     
-    if (content_length > 0)
+    if (contentLength > 0)
     {
         result += "-------------------------------------------\n";
-        result += parse_http_body(http_headers.value(), (*_sessions)[_session_key]->getBufferAsString(content_length));
+        result += parseHttpBody(httpHeaders.value(), (*_sessions)[_sessionKey]->getBufferAsString(contentLength));
         result += "\n-------------------------------------------\n";
-        (*_sessions)[_session_key]->pop(content_length);
+        (*_sessions)[_sessionKey]->deleteBuffer(contentLength);
     }
 
     return result;
 }
 
-std::optional<std::map<std::string, std::string>> PacketParser::parse_http_header(const std::string &buffer)
+std::optional<std::map<std::string, std::string>> PacketParser::parseHttpHeader(const std::string &buffer)
 {
     std::istringstream stream(buffer);
     std::string line;
-    std::map<std::string, std::string> http_headers;
-    uint32_t header_length = 0;
+    std::map<std::string, std::string> httpHeaders;
+    uint32_t headerLength = 0;
 
     if (not std::getline(stream, line))
     {
         return std::nullopt;   
     }
 
-    // line 길이 + 1(\n) header_length에 저장
-    header_length += line.length() + 1;
+    // line 길이 + 1(\n) headerLength에 저장
+    headerLength += line.length() + 1;
 
     std::regex request_pattern("^(GET|POST|HEAD|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH|TRACE)\\s");
     std::regex response_pattern("^HTTP/");
@@ -151,10 +159,10 @@ std::optional<std::map<std::string, std::string>> PacketParser::parse_http_heade
         std::string method, path, version;
         iss >> method >> path >> version;
 
-        http_headers["Type"] = "Request";
-        http_headers["Method"] = method;
-        http_headers["Path"] = path;
-        http_headers["Version"] = version;
+        httpHeaders["Type"] = "Request";
+        httpHeaders["Method"] = method;
+        httpHeaders["Path"] = path;
+        httpHeaders["Version"] = version;
     }
     else if (std::regex_search(line, response_pattern))
     {
@@ -162,38 +170,38 @@ std::optional<std::map<std::string, std::string>> PacketParser::parse_http_heade
         std::string code, version;
         iss >> version >> code;
 
-        http_headers["Type"] = "Response";
-        http_headers["Version"] = version;
-        http_headers["Code"] = code;
+        httpHeaders["Type"] = "Response";
+        httpHeaders["Version"] = version;
+        httpHeaders["Code"] = code;
     }
     else
     {
-        (*_sessions).erase(_session_key);
+        (*_sessions).erase(_sessionKey);
         return std::nullopt;
     }
 
     bool found_empty_line = false;
     while (std::getline(stream, line))
     {
-        header_length += line.length() + 1;
+        headerLength += line.length() + 1;
         if (line == "\r")
         {
             found_empty_line = true;
             break;
         }
 
-        std::istringstream header_line(line);
-        std::string header_key, header_value;
-        if (std::getline(header_line, header_key, ':'))
+        std::istringstream headerLine(line);
+        std::string header_key, headerValue;
+        if (std::getline(headerLine, header_key, ':'))
         {
-            if (std::getline(header_line, header_value))
+            if (std::getline(headerLine, headerValue))
             {
-                header_value.erase(0, header_value.find_first_not_of(" "));
-                if (not header_value.empty() and header_value.back() == '\r')
+                headerValue.erase(0, headerValue.find_first_not_of(" "));
+                if (not headerValue.empty() and headerValue.back() == '\r')
                 {
-                    header_value.pop_back();
+                    headerValue.pop_back();
                 }
-                http_headers[header_key] = header_value;
+                httpHeaders[header_key] = headerValue;
             }
         }
     }
@@ -203,49 +211,49 @@ std::optional<std::map<std::string, std::string>> PacketParser::parse_http_heade
         return std::nullopt;
     }
 
-    http_headers["Header-Length"] = std::to_string(header_length);
-    return http_headers;
+    httpHeaders["Header-Length"] = std::to_string(headerLength);
+    return httpHeaders;
 
 }
 
-std::string PacketParser::parse_http_body(const std::map<std::string, std::string> &http_headers, const std::string &buffer)
+std::string PacketParser::parseHttpBody(const std::map<std::string, std::string> &httpHeaders, const std::string &buffer)
 {
-    std::regex text_based_pattern(
+    std::regex textBasedPattern(
         R"(text/.*|application/json|application/javascript|application/xml|application/xhtml\+xml)",
         std::regex_constants::ECMAScript | std::regex_constants::icase);
 
-    std::regex binary_based_pattern(
+    std::regex binaryBasedPattern(
         R"(image/.*|application/octet-stream)",
         std::regex_constants::ECMAScript | std::regex_constants::icase);
 
-    auto it = http_headers.find("Content-Type");
-    if (it == http_headers.end())
+    auto it = httpHeaders.find("Content-Type");
+    if (it == httpHeaders.end())
     {   
         return "Unknown type";
     }
 
-    if (not std::regex_search(it->second, text_based_pattern))
+    if (not std::regex_search(it->second, textBasedPattern))
     {
-        if (std::regex_search(it->second, binary_based_pattern))
+        if (std::regex_search(it->second, binaryBasedPattern))
         {
-            std::string file_extension = ".bin";
+            std::string fileExtension = ".bin";
             std::string path = "files/";
             if (it->second.find("image/") != std::string::npos)
             {
                 if (it->second.find("jpeg") != std::string::npos)
                 {
-                    file_extension = ".jpg";
+                    fileExtension = ".jpg";
                 }
                 else if (it->second.find("png") != std::string::npos)
                 {
-                    file_extension = ".png";
+                    fileExtension = ".png";
                 }
                 else if (it->second.find("gif") != std::string::npos)
                 {
-                    file_extension = ".gif";
+                    fileExtension = ".gif";
                 }
             }   
-            std::string filename = path + format_timeval(_header->ts) + file_extension;
+            std::string filename = path + formatTimeval(_header->ts) + fileExtension;
             std::ofstream file(filename, std::ios::binary);
             if (file.is_open())
             {
@@ -257,8 +265,8 @@ std::string PacketParser::parse_http_body(const std::map<std::string, std::strin
         return "File not supported";
     }         
 
-    it = http_headers.find("Content-Encoding");
-    if (it != http_headers.end() and it->second == "gzip")
+    it = httpHeaders.find("Content-Encoding");
+    if (it != httpHeaders.end() and it->second == "gzip")
     {
         std::string decompress_data;
         codec::Gzip::Decompress(buffer, decompress_data);
@@ -269,17 +277,17 @@ std::string PacketParser::parse_http_body(const std::map<std::string, std::strin
     return buffer;
 }
 
-std::optional<std::string> PacketParser::parse_icmp_packet()
+std::optional<std::string> PacketParser::parseIcmpPacket()
 {
-    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
-    const struct IcmpHdr *icmp_hdr = reinterpret_cast<const struct IcmpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
+    const struct IpHdr *ipHdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
+    const struct IcmpHdr *icmpHdr = reinterpret_cast<const struct IcmpHdr*>(reinterpret_cast<const u_char*>(ipHdr) + (ipHdr->ipHl * 4));
 
     std::string result;
-    result = format_timeval(_header->ts) + " IP ";
-    result += format_ipv4_address(&ip_hdr->srcIp) + " > ";
-    result += format_ipv4_address(&ip_hdr->dstIp) + " ICMP ";
+    result = formatTimeval(_header->ts) + " IP ";
+    result += formatIpV4Address(&ipHdr->srcIp) + " > ";
+    result += formatIpV4Address(&ipHdr->dstIp) + " ICMP ";
 
-    switch(icmp_hdr->icmpType)
+    switch(icmpHdr->icmpType)
     {
         case kIcmpTypeEchoReply:
             result += "echo reply, ";
@@ -288,66 +296,66 @@ std::optional<std::string> PacketParser::parse_icmp_packet()
             result += "echo request, ";
             break;
         case kIcmpTypeTimeExceeded:
-            result += "time exceeded, code " + std::to_string(icmp_hdr->icmpCode) + ", ";
+            result += "time exceeded, code " + std::to_string(icmpHdr->icmpCode) + ", ";
             break;
         case kIcmpTypeUnreachable:
-            result += "destination unreachable, code " +  std::to_string(icmp_hdr->icmpCode) + ", ";
+            result += "destination unreachable, code " +  std::to_string(icmpHdr->icmpCode) + ", ";
             break;
         default:
             return std::nullopt;
     }
 
-    uint16_t icmp_len = ntohs(ip_hdr->ipLen) - (ip_hdr->ipHl * 4);
-    result += "id " + std::to_string(ntohs(icmp_hdr->icmpId)) + ", seq " + std::to_string(ntohs(icmp_hdr->icmpSeq)) + ", length " + std::to_string(icmp_len);
+    uint16_t icmp_len = ntohs(ipHdr->ipLen) - (ipHdr->ipHl * 4);
+    result += "id " + std::to_string(ntohs(icmpHdr->icmpId)) + ", seq " + std::to_string(ntohs(icmpHdr->icmpSeq)) + ", length " + std::to_string(icmp_len);
 
     return result;
 }
 
-int PacketParser::reassemble_tcp_payload()
+int PacketParser::reassembleTcpPayload()
 {
-    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
-    const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
+    const struct IpHdr *ipHdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
+    const struct TcpHdr *tcpHdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ipHdr) + (ipHdr->ipHl * 4));
     
-    if (tcp_hdr->flags & kSYN)
+    if (tcpHdr->flags & kSYN)
     {
-        (*_sessions)[_session_key] = std::make_shared<SessionData>(ntohl(tcp_hdr->seqNum));
+        (*_sessions)[_sessionKey] = std::make_shared<SessionData>(ntohl(tcpHdr->seqNum));
         return 0;
     }
 
-    if ((*_sessions).count(_session_key) == 0)
+    if ((*_sessions).count(_sessionKey) == 0)
     {
         return 0;
     }
     
-    if(tcp_hdr->flags & (kFIN + kRST))
+    if(tcpHdr->flags & (kFIN + kRST))
     {
-        (*_sessions).erase(_session_key);
+        (*_sessions).erase(_sessionKey);
         return 0;
     }
 
-    (*_sessions)[_session_key]->insertPacket(_header, _packet);
+    (*_sessions)[_sessionKey]->insertPacket(_header, _packet);
     
     return 1;
 }
 
-int PacketParser::classify_protocol()
+int PacketParser::classifyProtocol()
 {
-    const struct EtherHdr *ether_hdr = reinterpret_cast<const struct EtherHdr*>(_packet);
-    if (ntohs(ether_hdr->etherType) == kEtherTypeARP)
+    const struct EtherHdr *etherHdr = reinterpret_cast<const struct EtherHdr*>(_packet);
+    if (ntohs(etherHdr->etherType) == kEtherTypeARP)
     {
         return ARP_TYPE;
     }
-    else if (ntohs(ether_hdr->etherType) != kEtherTypeIP)
+    else if (ntohs(etherHdr->etherType) != kEtherTypeIP)
     {
         return UNDEFINED_TYPE;
     }
 
-    const struct IpHdr *ip_header = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
-    if (ip_header->ipP == kIpTypeTcp)
+    const struct IpHdr *ipHeader = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
+    if (ipHeader->ipP == kIpTypeTcp)
     {
         return TCP_TYPE;
     }
-    else if (ip_header->ipP == kIpTypeICMP)
+    else if (ipHeader->ipP == kIpTypeICMP)
     {
         return ICMP_TYPE;
     }
@@ -355,7 +363,7 @@ int PacketParser::classify_protocol()
     return UNDEFINED_TYPE;
 }
 
-std::string PacketParser::format_timeval(struct timeval tv)
+std::string PacketParser::formatTimeval(struct timeval tv)
 {
     std::stringstream ss;
     char buffer[9];
@@ -370,14 +378,14 @@ std::string PacketParser::format_timeval(struct timeval tv)
     return ss.str();
 }
 
-std::string PacketParser::format_mac_address(const uint8_t *mac_addr)
+std::string PacketParser::formatMacAddress(const uint8_t *macAddr)
 {
     std::ostringstream stream;
     stream << std::hex << std::setfill('0');
 
     for (int i = 0; i < 6; ++i)
     {
-        stream << std::setw(2) << mac_addr[i];
+        stream << std::setw(2) << macAddr[i];
         if (i < 5)
         {
             stream << ":";
@@ -386,7 +394,7 @@ std::string PacketParser::format_mac_address(const uint8_t *mac_addr)
     return stream.str();
 }
 
-std::string PacketParser::format_ipv4_address(const void *address)
+std::string PacketParser::formatIpV4Address(const void *address)
 {
     char str_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, address, str_ip, INET_ADDRSTRLEN);
@@ -394,10 +402,25 @@ std::string PacketParser::format_ipv4_address(const void *address)
     return std::string(str_ip);
 }
 
-void PacketParser::make_session_key()
+void PacketParser::makeSessionKey()
 {
-    const struct IpHdr *ip_hdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
-    const struct TcpHdr *tcp_hdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ip_hdr) + (ip_hdr->ipHl * 4));
+    const struct IpHdr *ipHdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
+    const struct TcpHdr *tcpHdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ipHdr) + (ipHdr->ipHl * 4));
 
-    _session_key = SessionKey(ip_hdr->srcIp.s_addr, tcp_hdr->srcPort, ip_hdr->dstIp.s_addr, tcp_hdr->dstPort);
+    _sessionKey = SessionKey(ipHdr->srcIp.s_addr, tcpHdr->srcPort, ipHdr->dstIp.s_addr, tcpHdr->dstPort);
+}
+
+uint32_t PacketParser::getSeqNum()
+{
+    if (classifyProtocol() == TCP_TYPE)
+    {
+        const struct IpHdr *ipHdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
+        const struct TcpHdr *tcpHdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ipHdr) + (ipHdr->ipHl * 4));
+
+        return ntohl(tcpHdr->seqNum);
+    }
+    else
+    {
+        return 0;
+    }
 }

@@ -8,7 +8,7 @@ ApplicationManager::ApplicationManager(int argc, char* argv[]): _argc(argc), _ar
 void ApplicationManager::parseOptions()
 {
     int opt;
-    while ((opt = getopt(_argc, _argv, "hDI:W:R:tria")) != -1)
+    while ((opt = getopt(_argc, _argv, "hDI:W:R:triak:")) != -1)
     {
         switch (opt)
         {
@@ -60,6 +60,15 @@ void ApplicationManager::parseOptions()
             case 'a':
                 _packet_mode = ALL_TYPE;
                 break;
+            case 'k':
+                if (not optarg)
+                {
+                    usage();
+                    exit(0);
+                }
+                _sslMode = true;
+                _keyLogFile = optarg;
+                break;
             default:
                 usage();
                 exit(0);
@@ -74,6 +83,16 @@ void ApplicationManager::setting()
     if (_capture_mode != READ_MODE)
     {
         _capture_engine.setPromisc();
+
+        if (_packet_mode == HTTP_TYPE)
+        {
+            _capture_engine.setBufferSize(16 * 1024 * 1024);
+        }
+    }
+
+    if (_sslMode)
+    {
+        _capture_engine.setSSLMode(_keyLogFile);
     }
 }
 

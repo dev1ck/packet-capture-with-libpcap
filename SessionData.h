@@ -7,31 +7,57 @@
 #include <iostream>
 #include "Protocol.h"
 
+struct RingBuffer
+{
+private:
+    uint32_t head = 0;
+    uint32_t tail = 0;
+    uint32_t max;
+    std::vector<u_char> buffer;
+public:
+    RingBuffer(uint32_t size = 1048576) : max(size), buffer(size) {}
+    std::vector<u_char> getBuffer();
+    std::vector<u_char> getBuffer(uint32_t sizeArg);
+    std::string getBufferAsString();
+    std::string getBufferAsString(uint32_t sizeArg);
+    void push(const u_char *data, uint32_t size);
+    void pop(uint32_t sizeArg);
+    uint32_t size();
+};
+
 
 class SessionData
 {
 private:
-    uint32_t _next_seq;
-    uint32_t _rb_head = 0;
-    uint32_t _rb_tail = 0;
-    uint32_t _rb_max = 1048576; // 1MB
-    struct timeval _last_packet_time;
-    static bool Compare(const std::pair<uint32_t, std::vector<u_char>>& a, const std::pair<uint32_t, std::vector<u_char>>& b);
-    std::vector<u_char> _payload = std::vector<u_char>(_rb_max);
-    std::priority_queue<std::pair<uint32_t, std::vector<u_char>>, std::vector<std::pair<uint32_t, std::vector<u_char>>>, decltype(&Compare)> _min_heap;
+    uint32_t _nextSeq;
+    struct timeval _lastPacketTime;
+    static bool Compare(const std::pair<uint32_t, std::vector<u_char>>& a, const std::pair<uint32_t, std::vector<u_char>>& b);   
+    std::priority_queue<std::pair<uint32_t, std::vector<u_char>>, std::vector<std::pair<uint32_t, std::vector<u_char>>>, decltype(&Compare)> _minHeap;
+    RingBuffer _ringBuffer;
 
 public:
-    SessionData(uint32_t seq): _next_seq(seq + 1) {}
+    SessionData(uint32_t seq): _nextSeq(seq + 1), _minHeap(Compare), _ringBuffer() {}
     void insertPacket(const struct pcap_pkthdr *header, const u_char *packet);
-    std::string getBufferAsString();
-    std::string getBufferAsString(uint32_t size_arg);
-    void push(const u_char *payload_locate, uint32_t payload_size);
-    void pop(uint32_t size_arg);
-    uint32_t size();
+    void deleteBuffer(uint32_t sizeArg) { _ringBuffer.pop(sizeArg); }
+    std::vector<u_char> getBuffer() { return _ringBuffer.getBuffer(); }
+    std::vector<u_char> getBuffer(uint32_t sizeArg) { return _ringBuffer.getBuffer(sizeArg); }
+    std::string getBufferAsString()
+    {
+        std::vector<u_char> buffer = _ringBuffer.getBuffer();
+        return std::string(buffer.begin(), buffer.end());
+    }
+    std::string getBufferAsString(uint32_t sizeArg)
+    {
+        std::vector<u_char> buffer = _ringBuffer.getBuffer(sizeArg);
+        return std::string(buffer.begin(), buffer.end());
+    }
+    
     struct timeval getLastPacketTime()
     {
-        return _last_packet_time;
+        return _lastPacketTime;
     }
+
+    uint32_t getBufferSize() { return _ringBuffer.size(); }
 };
 
 #endif

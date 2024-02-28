@@ -23,6 +23,8 @@ private:
     std::string _path;
     int _capture_mode = LIVE_MODE;
     int _packet_mode = TCP_TYPE;
+    bool _sslMode = false;
+    std::string _keyLogFile;
     CaptureEngine _capture_engine;
 public:
     ApplicationManager(){};

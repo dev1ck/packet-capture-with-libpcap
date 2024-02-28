@@ -14,18 +14,10 @@
 #include "PacketParser.h"
 #include "SessionData.h"
 
-// enum CaptureType
-// {
-//     UNDEFINED_TYPE = -1,
-//     ALL_TYPE,
-//     HTTP_TYPE,
-//     TCP_TYPE,
-//     ARP_TYPE,
-//     ICMP_TYPE,
-// };
-
 struct CaptureData {
     int mode;
+    std::string keyLogFile;
+    bool sslMode;
     std::map<SessionKey, std::shared_ptr<SessionData>>* sessions;
 };
 
@@ -33,23 +25,30 @@ class CaptureEngine
 {
 private:
     std::string _if_name;
-    pcap_t* _pcap_handle = nullptr;
+    pcap_t* _pcapHandle = nullptr;
     pcap_dumper_t *_dumper_t = nullptr;
     std::map<SessionKey, std::shared_ptr<SessionData>> _sessions;
+    std::string _keyLogFile = "";
+    bool _sslMode = false;
     // void checkSessionThread();
     // struct timeval getCurrentTimeval();
 public:
     CaptureEngine(){};
     CaptureEngine(const std::string& if_name);
     void setPromisc();
+    void setBufferSize(int size);
     void activate();
     void liveCaptureStart(int mode);
     void dumpCaptureStart(const std::string& path);
     void offlineParseStart(const std::string& path, int mode);
     void stop();
+    void setSSLMode(std::string path)
+    {
+        _sslMode = true;
+        _keyLogFile = path;
+    }
     static void PrintPcapVersion();
     static void PrintNICInfo();
-    
 };
 
 #endif

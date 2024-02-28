@@ -3,7 +3,7 @@
 CaptureEngine::CaptureEngine(const std::string& if_name): _if_name(if_name)
 {
     char err_buf[PCAP_ERRBUF_SIZE];
-    if((_pcap_handle = pcap_create(_if_name.c_str(), err_buf)) == nullptr)
+    if((_pcapHandle = pcap_create(_if_name.c_str(), err_buf)) == nullptr)
     {
         throw std::runtime_error(err_buf);
     }
@@ -11,15 +11,23 @@ CaptureEngine::CaptureEngine(const std::string& if_name): _if_name(if_name)
 
 void CaptureEngine::setPromisc()
 {
-    if (pcap_set_promisc(_pcap_handle, 1) != 0)
+    if (pcap_set_promisc(_pcapHandle, 1) != 0)
     {
         throw std::runtime_error("promisc 변환 오류");
     }
 }
 
+void CaptureEngine::setBufferSize(int size)
+{
+    if(pcap_set_buffer_size(_pcapHandle, size) != 0)
+    {
+        throw std::runtime_error("set buffer 오류");
+    }
+}
+
 void CaptureEngine::activate()
 {
-    int result = pcap_activate(_pcap_handle);
+    int result = pcap_activate(_pcapHandle);
     if(result < 0)
     {
         std::string err_type;
@@ -38,7 +46,7 @@ void CaptureEngine::activate()
         case(PCAP_ERROR_IFACE_NOT_UP):
             throw std::runtime_error("캡처 소스 장치가 작동되지 않습니다.");
         case(PCAP_ERROR):
-            throw std::runtime_error(pcap_geterr(_pcap_handle));
+            throw std::runtime_error(pcap_geterr(_pcapHandle));
         }
     }
 }
@@ -47,31 +55,35 @@ void CaptureEngine::activate()
 void capture_handle(u_char *user, const struct pcap_pkthdr *header, const u_char *packet)
 {
     CaptureData* data = reinterpret_cast<CaptureData*>(user);
-    PacketParser packet_parser(header, packet, data->sessions);
+    PacketParser packetParser(header, packet);
 
     std::optional<std::string> result;
 
-    int packet_type = packet_parser.classify_protocol();
+    int packetType = packetParser.classifyProtocol();
 
-    if (data->mode == ALL_TYPE or data->mode == packet_type)
+    if (data->mode == ALL_TYPE or data->mode == packetType)
     {
-        switch (packet_type)
+        switch (packetType)
         {
             case TCP_TYPE:
-                result = packet_parser.parse_tcp_hdr();
+                result = packetParser.parseTcpHdr();
                 break;
             case ARP_TYPE:
-                result = packet_parser.parse_arp_packet();
+                result = packetParser.parseArpPacket();
                 break;
             case ICMP_TYPE:
-                result = packet_parser.parse_icmp_packet();
+                result = packetParser.parseIcmpPacket();
                 break;
         }
     }
-
-    if (data->mode == HTTP_TYPE and packet_type == TCP_TYPE)
+    else if (data->mode == HTTP_TYPE and packetType == TCP_TYPE)
     {
-        result = packet_parser.parse_http_packet();
+        packetParser.setSessions(data->sessions);
+        if (data->sslMode)
+        {
+            packetParser.setSSLKeyLog(data->keyLogFile);
+        }
+        result = packetParser.parseHttpPacket();
     }
 
     if (result.has_value())
@@ -84,17 +96,19 @@ void CaptureEngine::liveCaptureStart(int mode)
 {
     CaptureData data;
     data.mode = mode;
+    data.sslMode = _sslMode;
+    data.keyLogFile = _keyLogFile;
     data.sessions = &_sessions;
 
     // std::thread sessions_cheack_thread(&CaptureEngine::checkSessionThread, this);
     // sessions_cheack_thread.detach();
 
-    pcap_loop(_pcap_handle, 0, capture_handle, reinterpret_cast<u_char *>(&data));
+    pcap_loop(_pcapHandle, 0, capture_handle, reinterpret_cast<u_char *>(&data));
 }
 
 void CaptureEngine::dumpCaptureStart(const std::string& path)
 {
-    _dumper_t = pcap_dump_open(_pcap_handle, path.c_str());
+    _dumper_t = pcap_dump_open(_pcapHandle, path.c_str());
     if (_dumper_t == nullptr)
     {
         char err_message[100];
@@ -102,24 +116,26 @@ void CaptureEngine::dumpCaptureStart(const std::string& path)
         throw std::runtime_error(err_message);
     }
     std::cout << "Dump Start" << std::endl;
-    pcap_loop(_pcap_handle, 0, pcap_dump, reinterpret_cast<u_char *>(_dumper_t));
+    pcap_loop(_pcapHandle, 0, pcap_dump, reinterpret_cast<u_char *>(_dumper_t));
 }
 
 void CaptureEngine::offlineParseStart(const std::string& path, int mode)
 {
     CaptureData data;
     data.mode = mode;
+    data.sslMode = _sslMode;
+    data.keyLogFile = _keyLogFile;
     data.sessions = &_sessions;
     
     char errbuf[PCAP_ERRBUF_SIZE];
-    _pcap_handle = pcap_open_offline(path.c_str(), errbuf);
+    _pcapHandle = pcap_open_offline(path.c_str(), errbuf);
 
-    if (_pcap_handle == nullptr)
+    if (_pcapHandle == nullptr)
     {
         throw std::runtime_error(errbuf);
     }
 
-    pcap_loop(_pcap_handle, 0, capture_handle, reinterpret_cast<u_char *>(&data));
+    pcap_loop(_pcapHandle, 0, capture_handle, reinterpret_cast<u_char *>(&data));
 }
 
 void CaptureEngine::PrintPcapVersion()
@@ -151,7 +167,7 @@ void CaptureEngine::stop()
     {
         pcap_dump_close(_dumper_t);
     }
-    pcap_close(_pcap_handle);
+    pcap_close(_pcapHandle);
 }
 
 
