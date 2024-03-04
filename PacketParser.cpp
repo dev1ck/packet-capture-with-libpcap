@@ -118,47 +118,43 @@ std::optional<std::string> PacketParser::parseTcpPayload()
 
 std::optional<std::string> PacketParser::parseHttpPacket()
 {
-    std::string result;
-    auto httpHeaders = parseHttpHeader((*_sessions)[_sessionKey]->getBufferAsString());
-    if (not httpHeaders.has_value())
+    if ((*_sessions)[_sessionKey]->getHttpHeader().size() == 0)
     {
-        return std::nullopt;
+        auto optHttpHeader = parseHttpHeader((*_sessions)[_sessionKey]->getBufferAsString());
+        if (not optHttpHeader.has_value())
+        {
+            return std::nullopt;
+        }
+        (*_sessions)[_sessionKey]->setHttpHeader(optHttpHeader.value());
+        (*_sessions)[_sessionKey]->deleteBuffer(std::stoi((*optHttpHeader)["Header-Length"]));
     }
-
-    uint32_t headerLength = std::stoi((*httpHeaders)["Header-Length"]);
+    
+    auto httpHeader = (*_sessions)[_sessionKey]->getHttpHeader();
     uint32_t contentLength = 0;
 
-    if ((*httpHeaders).find("Content-Length") != (*httpHeaders).end())
+    if (httpHeader.find("Content-Length") != httpHeader.end())
     {
-        contentLength = std::stoi((*httpHeaders)["Content-Length"]);
+        contentLength = std::stoi(httpHeader["Content-Length"]);
     }
 
-    uint32_t httpPacketSize = headerLength + contentLength;
-
-    if (httpPacketSize > (*_sessions)[_sessionKey]->getBufferSize())
+    if (contentLength > (*_sessions)[_sessionKey]->getBufferSize())
     {
         return std::nullopt;
     }
-    else if (httpPacketSize < (*_sessions)[_sessionKey]->getBufferSize())
+    else if (contentLength < (*_sessions)[_sessionKey]->getBufferSize())
     {
         (*_sessions).erase(_sessionKey);
         return "Invalid Packet";
     }
-
-    (*_sessions)[_sessionKey]->deleteBuffer(headerLength);
-    
-    for (const auto &header: httpHeaders.value())
-    {
-        result += header.first + " : " + header.second + "\n";
-    }
     
     if (contentLength > 0)
     {
-        result += "-------------------------------------------\n";
-        result += parseHttpBody(httpHeaders.value(), (*_sessions)[_sessionKey]->getBufferAsString(contentLength));
-        result += "\n-------------------------------------------\n";
+        (*_sessions)[_sessionKey]->setHttpBody(parseHttpBody(httpHeader, (*_sessions)[_sessionKey]->getBufferAsString()));
         (*_sessions)[_sessionKey]->deleteBuffer(contentLength);
     }
+
+    std::string result = (*_sessions)[_sessionKey]->getStringHttpPacket();
+    (*_sessions)[_sessionKey]->clearHttpPacket();
 
     return result;
 }
