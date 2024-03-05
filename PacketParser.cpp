@@ -102,14 +102,13 @@ std::optional<std::string> PacketParser::parseTcpPayload()
     {
         case SessionProtocol::HTTP:
         {
-            // HTTP Packet을 저장할 구조체 또는 class를 만들어 관리
             return parseHttpPacket();
             break;
         }
         case SessionProtocol::TLS:
-            // tls class를 만들어서 master key 계산
-            // 복호화 후 HTTP 패킷 여부 판단하여 http 파싱
-
+        {
+            return parseTLSPacket();
+        }
         break;
         default:
             return std::nullopt;
@@ -120,16 +119,17 @@ std::optional<std::string> PacketParser::parseHttpPacket()
 {
     if ((*_sessions)[_sessionKey]->getHttpHeader().size() == 0)
     {
-        auto optHttpHeader = parseHttpHeader((*_sessions)[_sessionKey]->getBufferAsString());
+        auto optHttpHeader = std::move(parseHttpHeader((*_sessions)[_sessionKey]->getBufferAsString()));
         if (not optHttpHeader.has_value())
         {
             return std::nullopt;
         }
         (*_sessions)[_sessionKey]->setHttpHeader(optHttpHeader.value());
-        (*_sessions)[_sessionKey]->deleteBuffer(std::stoi((*optHttpHeader)["Header-Length"]));
+        uint32_t headerSize = std::stoi((*_sessions)[_sessionKey]->getHttpHeader()["Header-Length"]);
+        (*_sessions)[_sessionKey]->deleteBuffer(headerSize);
     }
     
-    auto httpHeader = (*_sessions)[_sessionKey]->getHttpHeader();
+    auto& httpHeader = (*_sessions)[_sessionKey]->getHttpHeader();
     uint32_t contentLength = 0;
 
     if (httpHeader.find("Content-Length") != httpHeader.end())
@@ -301,6 +301,76 @@ std::string PacketParser::parseHttpBody(const std::map<std::string, std::string>
     return buffer;
 }
 
+std::optional<std::string> PacketParser::parseTLSPacket()
+{
+    std::vector<u_char> buffer = (*_sessions)[_sessionKey]->getBuffer();
+    const struct TLSRecordHdr *tlsHdr = reinterpret_cast<const struct TLSRecordHdr*>(buffer.data());
+    
+    switch(tlsHdr->contentType)
+    {
+        case SSL3_RT_HANDSHAKE:
+        {
+            parseTLSHandhake();
+        }
+        break;
+    }
+    return std::nullopt; 
+}
+
+void PacketParser::parseTLSHandhake()
+{
+    std::vector<u_char> buffer = (*_sessions)[_sessionKey]->getBuffer();
+    const struct TLSHandshakeHdr *tlsHandshakeHdr = reinterpret_cast<const struct TLSHandshakeHdr*>(buffer.data() + sizeof(struct TLSRecordHdr));
+
+
+    switch (tlsHandshakeHdr->type)
+    {
+        case CLIENT_HELLO:
+        {
+            const struct TLSHandshakeHello *tlsHandshakeHello = reinterpret_cast<const struct TLSHandshakeHello*>(tlsHandshakeHdr) + sizeof(struct TLSHandshakeHdr);
+            SSLSessionManager::Instance().saveClientRandom(_sessionKey, tlsHandshakeHello->random);
+        }
+        break;
+        case SERVER_HELLO:
+        {
+            const struct TLSHandshakeHello *tlsHandshakeHello = reinterpret_cast<const struct TLSHandshakeHello*>(tlsHandshakeHdr) + sizeof(struct TLSHandshakeHdr);
+            const u_char* sslSessionIDLocate = reinterpret_cast<const u_char*>(tlsHandshakeHello) + sizeof(TLSHandshakeHello);
+            const uint16_t* cipherSuite = reinterpret_cast<const uint16_t*>(sslSessionIDLocate + tlsHandshakeHello->sessionIDLength);
+
+            if (not checkCipherSuite(htons(*cipherSuite)))
+            {
+                SSLSessionManager::Instance().deleteClientRandom(peerSessionKey());
+                (*_sessions).erase(_sessionKey);
+                (*_sessions).erase(peerSessionKey());
+                return;
+            }
+
+            std::ostringstream stream;
+            for (int i = 0; i < tlsHandshakeHello->sessionIDLength; i++)
+            {
+                stream << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(sslSessionIDLocate[i]);
+            }
+
+            std::string tlsSessionID = stream.str();
+            SSLSessionManager::Instance().makeTLSSession(tlsSessionID, peerSessionKey(), tlsHandshakeHello->random, htons(*cipherSuite));
+
+            (*_sessions)[_sessionKey]->setTLSSessionID(tlsSessionID);
+            (*_sessions)[peerSessionKey()]->setTLSSessionID(tlsSessionID);
+        }
+        break;
+        case CLIENT_KEY_EXCHANGE:
+        {
+            const uint16_t *preMasterLength = reinterpret_cast<const u_int16_t*>(tlsHandshakeHdr) + sizeof(TLSHandshakeHdr);
+            const u_char* encryptedPreMaster = reinterpret_cast<const u_char*>(tlsHandshakeHdr) + sizeof(TLSHandshakeHdr) + 2;
+
+            SSLSessionManager::Instance().setPreMasterSecret((*_sessions)[_sessionKey]->getTLSSessionID(), encryptedPreMaster, *preMasterLength);
+
+        }
+        break;
+    }
+    (*_sessions)[_sessionKey]->clearBuffer();
+}
+
 std::optional<std::string> PacketParser::parseIcmpPacket()
 {
     const struct IpHdr *ipHdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
@@ -437,19 +507,12 @@ void PacketParser::makeSessionKey()
     _sessionKey = SessionKey(ipHdr->srcIp.s_addr, tcpHdr->srcPort, ipHdr->dstIp.s_addr, tcpHdr->dstPort);
 }
 
-uint32_t PacketParser::getSeqNum()
+SessionKey PacketParser::peerSessionKey()
 {
-    if (classifyProtocol() == TCP_TYPE)
-    {
-        const struct IpHdr *ipHdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
-        const struct TcpHdr *tcpHdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ipHdr) + (ipHdr->ipHl * 4));
+    const struct IpHdr *ipHdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
+    const struct TcpHdr *tcpHdr = reinterpret_cast<const struct TcpHdr*>(reinterpret_cast<const u_char*>(ipHdr) + (ipHdr->ipHl * 4));
 
-        return ntohl(tcpHdr->seqNum);
-    }
-    else
-    {
-        return 0;
-    }
+    return SessionKey(ipHdr->dstIp.s_addr, tcpHdr->dstPort, ipHdr->srcIp.s_addr, tcpHdr->srcPort);
 }
 
 std::optional<SessionProtocol> PacketParser::classifyPayload()
@@ -460,10 +523,9 @@ std::optional<SessionProtocol> PacketParser::classifyPayload()
         return SessionProtocol::HTTP;
     }
 
-    if (_sslMode and isTlsProtocol())
+    if (_sslMode and isTLSProtocol())
     {
         (*_sessions)[_sessionKey]->setProtocol(SessionProtocol::TLS);
-        std::cout << "tls" << std::endl;
         return SessionProtocol::TLS;
     }
     (*_sessions).erase(_sessionKey);
@@ -489,15 +551,15 @@ bool PacketParser::isHttpProtocol()
     return false;
 }
 
-bool PacketParser::isTlsProtocol()
+bool PacketParser::isTLSProtocol()
 {
-    if ((*_sessions)[_sessionKey]->getBufferSize() < sizeof(struct TlsRecordHdr))
+    if ((*_sessions)[_sessionKey]->getBufferSize() < sizeof(struct TLSRecordHdr))
     {
         return false;
     }
 
     std::vector<u_char> buffer = (*_sessions)[_sessionKey]->getBuffer();
-    const struct TlsRecordHdr *tlsHdr = reinterpret_cast<const struct TlsRecordHdr*>(buffer.data());
+    const struct TLSRecordHdr *tlsHdr = reinterpret_cast<const struct TLSRecordHdr*>(buffer.data());
     
     if (tlsHdr->contentType < SSL3_RT_CHANGE_CIPHER_SPEC or tlsHdr->contentType > TLS1_RT_HEARTBEAT)
     {
@@ -510,4 +572,20 @@ bool PacketParser::isTlsProtocol()
     }
 
     return true;
+}
+
+bool PacketParser::checkCipherSuite(uint16_t cipherSuite)
+{
+    switch(cipherSuite)
+    {
+        case TLS_RSA_WITH_AES_128_CBC_SHA:
+        case TLS_RSA_WITH_AES_256_CBC_SHA:
+        case TLS_RSA_WITH_AES_128_CBC_SHA256:
+        case TLS_RSA_WITH_AES_256_CBC_SHA256:
+        case TLS_RSA_WITH_AES_128_GCM_SHA256:
+        case TLS_RSA_WITH_AES_256_GCM_SHA384:
+            return true;
+        default:
+            return false;
+    }
 }

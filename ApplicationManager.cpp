@@ -92,7 +92,10 @@ void ApplicationManager::setting()
 
     if (_sslMode)
     {
-        _capture_engine.setSSLMode(_keyLogFile);
+        if (SSLSessionManager::Instance().loadPrivateKey(_keyLogFile))
+        {
+            _capture_engine.setSSLMode();         
+        }
     }
 }
 

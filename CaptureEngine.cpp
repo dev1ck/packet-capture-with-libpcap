@@ -55,7 +55,7 @@ void CaptureEngine::activate()
 void capture_handle(u_char *user, const struct pcap_pkthdr *header, const u_char *packet)
 {
     CaptureData* data = reinterpret_cast<CaptureData*>(user);
-    PacketParser packetParser(header, packet);
+    PacketParser packetParser(header, packet, data->sslMode);
 
     std::optional<std::string> result;
 
@@ -79,10 +79,6 @@ void capture_handle(u_char *user, const struct pcap_pkthdr *header, const u_char
     else if (data->mode == HTTP_TYPE and packetType == TCP_TYPE)
     {
         packetParser.setSessions(data->sessions);
-        if (data->sslMode)
-        {
-            packetParser.setSSLKeyLog(data->keyLogFile);
-        }
         result = packetParser.parseTcpPayload();
     }
 
@@ -97,7 +93,6 @@ void CaptureEngine::liveCaptureStart(int mode)
     CaptureData data;
     data.mode = mode;
     data.sslMode = _sslMode;
-    data.keyLogFile = _keyLogFile;
     data.sessions = &_sessions;
 
     // std::thread sessions_cheack_thread(&CaptureEngine::checkSessionThread, this);
@@ -124,7 +119,6 @@ void CaptureEngine::offlineParseStart(const std::string& path, int mode)
     CaptureData data;
     data.mode = mode;
     data.sslMode = _sslMode;
-    data.keyLogFile = _keyLogFile;
     data.sessions = &_sessions;
     
     char errbuf[PCAP_ERRBUF_SIZE];

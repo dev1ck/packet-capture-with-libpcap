@@ -23,6 +23,10 @@ public:
     std::string getBufferAsString(uint32_t sizeArg);
     void push(const u_char *data, uint32_t size);
     void pop(uint32_t sizeArg);
+    void clear()
+    {
+        tail = head;
+    }
     uint32_t size();
 };
 
@@ -99,14 +103,17 @@ public:
         return _lastPacketTime;
     }
     uint32_t getBufferSize() { return _ringBuffer.size(); }
+    void clearBuffer() { _ringBuffer.clear(); }
     int getProtocol() { return _protocol; }
     void setProtocol(SessionProtocol type) { _protocol = type; }
-    void setHttpHeader(std::map<std::string, std::string> header) { _httpPacket.header = header; }
-    std::map<std::string, std::string> getHttpHeader() { return _httpPacket.header; }
-    void setHttpBody(std::string body) { _httpPacket.body = body; }
-    std::string getHttpBody() { return _httpPacket.body; }
+    void setHttpHeader(std::map<std::string, std::string> &header) { _httpPacket.header = std::move(header); }
+    void setHttpBody(std::string body) { _httpPacket.body = std::move(body); }
+    std::map<std::string, std::string>& getHttpHeader() { return _httpPacket.header; }
+    std::string& getHttpBody() { return _httpPacket.body; }
     void clearHttpPacket() { _httpPacket.clear(); }
     std::string getStringHttpPacket() { return _httpPacket.getString(); }
+    void setTLSSessionID(const std::string &sessionID) { _sslSessionId = sessionID; }
+    std::string getTLSSessionID() { return _sslSessionId; } 
 };
 
 #endif

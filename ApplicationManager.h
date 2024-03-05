@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "CaptureEngine.h"
+#include "SSLSessionManager.h"
 
 enum capture_mode
 {

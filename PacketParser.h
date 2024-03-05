@@ -20,6 +20,7 @@
 #include "Protocol.h"
 #include "SessionData.h"
 #include "Gzip.h"
+#include "SSLSessionManager.h"
 
 enum CaptureType
 {
@@ -41,33 +42,35 @@ private:
     std::map<SessionKey, std::shared_ptr<SessionData>> *_sessions;
     SessionKey _sessionKey;
     bool _sslMode = false;
-    std::string _sslKeyLogFile = "";
 
     std::optional<std::string> parseHttpPacket();
     std::optional<std::map<std::string, std::string>> parseHttpHeader(const std::string &buffer);
     std::string parseHttpBody(const std::map<std::string, std::string> &http_headers, const std::string &buffer);
+
+    std::optional<std::string> parseTLSPacket();
+    void parseTLSHandhake();
+    
+    void makeSessionKey();
+    SessionKey peerSessionKey();
     bool reassembleTcpPayload();
+    bool isHttpProtocol();
+    bool isTLSProtocol();
+    bool checkCipherSuite(uint16_t cipherSuite);
+
     std::string formatTimeval(struct timeval tv);
     std::string formatMacAddress(const uint8_t *macAddr);
     std::string formatIpV4Address(const void *address);
-    void makeSessionKey();
+
     std::optional<SessionProtocol> classifyPayload();
-    bool isHttpProtocol();
-    bool isTlsProtocol();
 public:
-    PacketParser(const struct pcap_pkthdr *header, const u_char *packet) : _header(header), _packet(packet) {}
+    PacketParser(const struct pcap_pkthdr *header, const u_char *packet, bool sslMode) : _header(header), _packet(packet), _sslMode(sslMode) {}
     void setSessions(std::map<SessionKey, std::shared_ptr<SessionData>> *sessions) {_sessions = sessions;}
-    void setSSLKeyLog(std::string keyLogFile)
-    {
-        _sslKeyLogFile = keyLogFile;
-        _sslMode = true;
-    };
     std::optional<std::string> parseTcpHdr();
     std::optional<std::string> parseArpPacket();
     std::optional<std::string> parseTcpPayload();
     std::optional<std::string> parseIcmpPacket();
+    
     int classifyProtocol();
-    uint32_t getSeqNum();
 };
 
 

@@ -16,7 +16,6 @@
 
 struct CaptureData {
     int mode;
-    std::string keyLogFile;
     bool sslMode;
     std::map<SessionKey, std::shared_ptr<SessionData>>* sessions;
 };
@@ -42,10 +41,9 @@ public:
     void dumpCaptureStart(const std::string& path);
     void offlineParseStart(const std::string& path, int mode);
     void stop();
-    void setSSLMode(std::string path)
+    void setSSLMode()
     {
         _sslMode = true;
-        _keyLogFile = path;
     }
     static void PrintPcapVersion();
     static void PrintNICInfo();

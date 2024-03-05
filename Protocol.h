@@ -53,6 +53,23 @@
 #define TLS1_1_VERSION 0x0302
 #define TLS1_2_VERSION 0x03030
 
+// SSL Handshake Type
+#define CLIENT_HELLO 0x01
+#define SERVER_HELLO 0x02
+#define CLIENT_KEY_EXCHANGE 0x10
+
+// SSL RSA CipherSuite
+#define TLS_RSA_WITH_AES_128_CBC_SHA 0x002F
+#define TLS_RSA_WITH_AES_256_CBC_SHA 0x0035
+#define TLS_RSA_WITH_AES_128_CBC_SHA256 0x003C
+#define TLS_RSA_WITH_AES_256_CBC_SHA256 0x003D
+#define TLS_RSA_WITH_AES_128_GCM_SHA256 0x009C
+#define TLS_RSA_WITH_AES_256_GCM_SHA384 0x009D
+
+#define TLS12_MASTER_SECRET_LENGTH 48
+#define TLS12_RANDOM_VALUE_LENGTH 32
+
+
 struct __attribute__((__packed__)) EtherHdr
 {
 	uint8_t  etherDhost[6];		/* destination eth addr	*/
@@ -110,22 +127,27 @@ struct __attribute__((__packed__)) IcmpHdr
 	uint16_t icmpSeq;
 };
 
-struct __attribute__((__packed__)) TlsRecordHdr
+struct __attribute__((__packed__)) TLSRecordHdr
 {
 	uint8_t contentType;
 	uint16_t version;
 	uint16_t length;
 };
 
-struct __attribute__((__packed__)) ServerHello
+struct __attribute__((__packed__)) TLSHandshakeHdr
 {
-
+	uint8_t type;
+	uint8_t length[3];
 };
 
-struct __attribute__((__packed__)) ClientHello
+struct __attribute__((__packed__)) TLSHandshakeHello
 {
-
+	uint16_t version;
+	uint8_t random[32];
+	uint8_t sessionIDLength;
 };
+
+
 // struct __attribute__((__packed__)) PseudoHdr
 // {
 //     struct in_addr srcIp, dstIp;
