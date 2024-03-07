@@ -637,8 +637,8 @@ bool PacketParser::checkCipherSuite(uint16_t cipherSuite)
         case TLS_RSA_WITH_AES_256_CBC_SHA:
         case TLS_RSA_WITH_AES_128_CBC_SHA256:
         case TLS_RSA_WITH_AES_256_CBC_SHA256:
-        case TLS_RSA_WITH_AES_128_GCM_SHA256:
-        case TLS_RSA_WITH_AES_256_GCM_SHA384:
+        // case TLS_RSA_WITH_AES_128_GCM_SHA256:
+        // case TLS_RSA_WITH_AES_256_GCM_SHA384:
             return true;
         default:
             return false;
