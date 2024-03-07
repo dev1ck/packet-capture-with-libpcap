@@ -55,8 +55,8 @@ private:
     void makeSessionKey();
     SessionKey peerSessionKey();
     bool reassembleTcpPayload();
-    bool isHttpProtocol(RingBuffer& ringBuffer);
-    bool isTLSProtocol(RingBuffer& ringBuffer);
+    bool isHttpProtocol(BufferType bufferType);
+    bool isTLSProtocol(BufferType bufferType);
     bool checkCipherSuite(uint16_t cipherSuite);
 
     std::string formatTimeval(struct timeval tv);

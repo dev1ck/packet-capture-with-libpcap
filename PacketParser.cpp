@@ -326,7 +326,7 @@ std::optional<std::string> PacketParser::parseTLSPacket()
             ringBuffer->clear();
 
             ringBuffer = &((*_sessions)[_sessionKey]->getBuffer(BufferType::decryptBuffer));
-            if (isHttpProtocol(*ringBuffer))
+            if (isHttpProtocol(BufferType::decryptBuffer))
             {
                 return parseHttpPacket(BufferType::decryptBuffer);
             }
@@ -570,14 +570,13 @@ SessionKey PacketParser::peerSessionKey()
 
 std::optional<SessionProtocol> PacketParser::classifyPayload()
 {
-    RingBuffer &ringBuffer = (*_sessions)[_sessionKey]->getBuffer(BufferType::payloadBuffer);
-    if (isHttpProtocol(ringBuffer))
+    if (isHttpProtocol(BufferType::payloadBuffer))
     {
         (*_sessions)[_sessionKey]->setProtocol(SessionProtocol::HTTP);
         return SessionProtocol::HTTP;
     }
 
-    if (_sslMode and isTLSProtocol(ringBuffer))
+    if (_sslMode and isTLSProtocol(BufferType::payloadBuffer))
     {
         (*_sessions)[_sessionKey]->setProtocol(SessionProtocol::TLS);
         return SessionProtocol::TLS;
@@ -586,8 +585,9 @@ std::optional<SessionProtocol> PacketParser::classifyPayload()
     return std::nullopt;
 }
 
-bool PacketParser::isHttpProtocol(RingBuffer& ringBuffer)
+bool PacketParser::isHttpProtocol(BufferType bufferType)
 {
+    RingBuffer &ringBuffer = (*_sessions)[_sessionKey]->getBuffer(bufferType);
     std::string buffer = ringBuffer.getBufferAsString();
 
     std::istringstream stream(buffer);
@@ -605,8 +605,9 @@ bool PacketParser::isHttpProtocol(RingBuffer& ringBuffer)
     return false;
 }
 
-bool PacketParser::isTLSProtocol(RingBuffer& ringBuffer)
+bool PacketParser::isTLSProtocol(BufferType bufferType)
 {
+    RingBuffer &ringBuffer = (*_sessions)[_sessionKey]->getBuffer(bufferType);
     if (ringBuffer.size() < sizeof(struct TLSRecordHdr))
     {
         return false;
