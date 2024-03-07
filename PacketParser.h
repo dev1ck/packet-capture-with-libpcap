@@ -16,6 +16,7 @@
 
 #include <arpa/inet.h>
 #include <pcap/pcap.h>
+#include <cstring>
 
 #include "Protocol.h"
 #include "SessionData.h"
@@ -43,18 +44,19 @@ private:
     SessionKey _sessionKey;
     bool _sslMode = false;
 
-    std::optional<std::string> parseHttpPacket();
+    std::optional<std::string> parseHttpPacket(BufferType bufferType);
     std::optional<std::map<std::string, std::string>> parseHttpHeader(const std::string &buffer);
     std::string parseHttpBody(const std::map<std::string, std::string> &http_headers, const std::string &buffer);
 
     std::optional<std::string> parseTLSPacket();
-    void parseTLSHandhake();
+    bool parseTLSHandhake();
+    bool parseTLSApplicationData();
     
     void makeSessionKey();
     SessionKey peerSessionKey();
     bool reassembleTcpPayload();
-    bool isHttpProtocol();
-    bool isTLSProtocol();
+    bool isHttpProtocol(RingBuffer& ringBuffer);
+    bool isTLSProtocol(RingBuffer& ringBuffer);
     bool checkCipherSuite(uint16_t cipherSuite);
 
     std::string formatTimeval(struct timeval tv);

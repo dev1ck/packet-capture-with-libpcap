@@ -86,7 +86,7 @@ void ApplicationManager::setting()
 
         if (_packet_mode == HTTP_TYPE)
         {
-            _capture_engine.setBufferSize(16 * 1024 * 1024);
+            _capture_engine.setBufferSize(32 * 1024 * 1024);
         }
     }
 
@@ -120,6 +120,7 @@ void ApplicationManager::stop()
 {
     std::cout << "Stopping Dump..." << std::endl;
     _capture_engine.stop();
+    SSLSessionManager::Instance().cleanup();
 }
 
 void ApplicationManager::usage()

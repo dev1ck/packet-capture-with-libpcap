@@ -1,7 +1,6 @@
 #include "PacketParser.h"
 #include "SessionData.h"
 
-
 std::optional<std::string> PacketParser::parseTcpHdr()
 {
     std::string result;
@@ -102,7 +101,7 @@ std::optional<std::string> PacketParser::parseTcpPayload()
     {
         case SessionProtocol::HTTP:
         {
-            return parseHttpPacket();
+            return parseHttpPacket(BufferType::payloadBuffer);
             break;
         }
         case SessionProtocol::TLS:
@@ -115,18 +114,19 @@ std::optional<std::string> PacketParser::parseTcpPayload()
     }
 }
 
-std::optional<std::string> PacketParser::parseHttpPacket()
+std::optional<std::string> PacketParser::parseHttpPacket(BufferType bufferType)
 {
+    RingBuffer &ringBuffer = (*_sessions)[_sessionKey]->getBuffer(bufferType);
     if ((*_sessions)[_sessionKey]->getHttpHeader().size() == 0)
     {
-        auto optHttpHeader = std::move(parseHttpHeader((*_sessions)[_sessionKey]->getBufferAsString()));
+        auto optHttpHeader = std::move(parseHttpHeader(ringBuffer.getBufferAsString()));
         if (not optHttpHeader.has_value())
         {
             return std::nullopt;
         }
         (*_sessions)[_sessionKey]->setHttpHeader(optHttpHeader.value());
         uint32_t headerSize = std::stoi((*_sessions)[_sessionKey]->getHttpHeader()["Header-Length"]);
-        (*_sessions)[_sessionKey]->deleteBuffer(headerSize);
+        ringBuffer.pop(headerSize);
     }
     
     auto& httpHeader = (*_sessions)[_sessionKey]->getHttpHeader();
@@ -137,11 +137,11 @@ std::optional<std::string> PacketParser::parseHttpPacket()
         contentLength = std::stoi(httpHeader["Content-Length"]);
     }
 
-    if (contentLength > (*_sessions)[_sessionKey]->getBufferSize())
+    if (contentLength > ringBuffer.size())
     {
         return std::nullopt;
     }
-    else if (contentLength < (*_sessions)[_sessionKey]->getBufferSize())
+    else if (contentLength < ringBuffer.size())
     {
         (*_sessions).erase(_sessionKey);
         return "Invalid Packet";
@@ -149,8 +149,8 @@ std::optional<std::string> PacketParser::parseHttpPacket()
     
     if (contentLength > 0)
     {
-        (*_sessions)[_sessionKey]->setHttpBody(parseHttpBody(httpHeader, (*_sessions)[_sessionKey]->getBufferAsString()));
-        (*_sessions)[_sessionKey]->deleteBuffer(contentLength);
+        (*_sessions)[_sessionKey]->setHttpBody(parseHttpBody(httpHeader, ringBuffer.getBufferAsString()));
+        ringBuffer.pop(contentLength);
     }
 
     std::string result = (*_sessions)[_sessionKey]->getStringHttpPacket();
@@ -303,37 +303,58 @@ std::string PacketParser::parseHttpBody(const std::map<std::string, std::string>
 
 std::optional<std::string> PacketParser::parseTLSPacket()
 {
-    std::vector<u_char> buffer = (*_sessions)[_sessionKey]->getBuffer();
+    RingBuffer *ringBuffer = &((*_sessions)[_sessionKey]->getBuffer(BufferType::payloadBuffer));
+    std::vector<u_char> buffer = ringBuffer->getData();
     const struct TLSRecordHdr *tlsHdr = reinterpret_cast<const struct TLSRecordHdr*>(buffer.data());
-    
     switch(tlsHdr->contentType)
     {
         case SSL3_RT_HANDSHAKE:
         {
-            parseTLSHandhake();
+            if (not parseTLSHandhake())
+            {
+                return std::nullopt;
+            }
+            ringBuffer->clear();
         }
         break;
+        case SSL3_RT_APPLICATION_DATA:
+        {
+            if (not parseTLSApplicationData())
+            {
+                return std::nullopt;
+            }
+            ringBuffer->clear();
+
+            ringBuffer = &((*_sessions)[_sessionKey]->getBuffer(BufferType::decryptBuffer));
+            if (isHttpProtocol(*ringBuffer))
+            {
+                return parseHttpPacket(BufferType::decryptBuffer);
+            }
+        }
+        case SSL3_RT_CHANGE_CIPHER_SPEC:
+            ringBuffer->clear();
+            break;
     }
     return std::nullopt; 
 }
 
-void PacketParser::parseTLSHandhake()
+bool PacketParser::parseTLSHandhake()
 {
-    std::vector<u_char> buffer = (*_sessions)[_sessionKey]->getBuffer();
+    RingBuffer &ringBuffer = (*_sessions)[_sessionKey]->getBuffer(BufferType::payloadBuffer);
+    std::vector<u_char> buffer = ringBuffer.getData();
     const struct TLSHandshakeHdr *tlsHandshakeHdr = reinterpret_cast<const struct TLSHandshakeHdr*>(buffer.data() + sizeof(struct TLSRecordHdr));
-
 
     switch (tlsHandshakeHdr->type)
     {
         case CLIENT_HELLO:
         {
-            const struct TLSHandshakeHello *tlsHandshakeHello = reinterpret_cast<const struct TLSHandshakeHello*>(tlsHandshakeHdr) + sizeof(struct TLSHandshakeHdr);
+            const struct TLSHandshakeHello *tlsHandshakeHello = reinterpret_cast<const struct TLSHandshakeHello*>(reinterpret_cast<const u_char*>(tlsHandshakeHdr) + sizeof(struct TLSHandshakeHdr));
             SSLSessionManager::Instance().saveClientRandom(_sessionKey, tlsHandshakeHello->random);
         }
         break;
         case SERVER_HELLO:
         {
-            const struct TLSHandshakeHello *tlsHandshakeHello = reinterpret_cast<const struct TLSHandshakeHello*>(tlsHandshakeHdr) + sizeof(struct TLSHandshakeHdr);
+            const struct TLSHandshakeHello *tlsHandshakeHello = reinterpret_cast<const struct TLSHandshakeHello*>(reinterpret_cast<const u_char*>(tlsHandshakeHdr) + sizeof(struct TLSHandshakeHdr));
             const u_char* sslSessionIDLocate = reinterpret_cast<const u_char*>(tlsHandshakeHello) + sizeof(TLSHandshakeHello);
             const uint16_t* cipherSuite = reinterpret_cast<const uint16_t*>(sslSessionIDLocate + tlsHandshakeHello->sessionIDLength);
 
@@ -342,7 +363,7 @@ void PacketParser::parseTLSHandhake()
                 SSLSessionManager::Instance().deleteClientRandom(peerSessionKey());
                 (*_sessions).erase(_sessionKey);
                 (*_sessions).erase(peerSessionKey());
-                return;
+                return false;
             }
 
             std::ostringstream stream;
@@ -360,15 +381,41 @@ void PacketParser::parseTLSHandhake()
         break;
         case CLIENT_KEY_EXCHANGE:
         {
-            const uint16_t *preMasterLength = reinterpret_cast<const u_int16_t*>(tlsHandshakeHdr) + sizeof(TLSHandshakeHdr);
-            const u_char* encryptedPreMaster = reinterpret_cast<const u_char*>(tlsHandshakeHdr) + sizeof(TLSHandshakeHdr) + 2;
+            const uint16_t *preMasterLength = reinterpret_cast<const uint16_t*>(reinterpret_cast<const u_char*>(tlsHandshakeHdr) + sizeof(TLSHandshakeHdr));
+            const u_char* encryptedPreMaster = reinterpret_cast<const u_char*>(preMasterLength) + 2;
 
-            SSLSessionManager::Instance().setPreMasterSecret((*_sessions)[_sessionKey]->getTLSSessionID(), encryptedPreMaster, *preMasterLength);
-
+            if (not SSLSessionManager::Instance().generateMasterSecret((*_sessions)[_sessionKey]->getTLSSessionID(), encryptedPreMaster, ntohs(*preMasterLength)))
+            {
+                SSLSessionManager::Instance().deleteSession((*_sessions)[_sessionKey]->getTLSSessionID());
+                (*_sessions).erase(_sessionKey);
+                (*_sessions).erase(peerSessionKey());
+                return false;
+            }
+            SSLSessionManager::Instance().generateSessionKey((*_sessions)[_sessionKey]->getTLSSessionID());
         }
         break;
     }
-    (*_sessions)[_sessionKey]->clearBuffer();
+    return true;
+}
+
+bool PacketParser::parseTLSApplicationData()
+{
+    RingBuffer *ringBuffer = &((*_sessions)[_sessionKey]->getBuffer(BufferType::payloadBuffer));
+    std::vector<u_char> buffer = ringBuffer->getData();
+    const struct TLSRecordHdr *tlsHdr = reinterpret_cast<const struct TLSRecordHdr*>(buffer.data());
+    size_t encryptDataLength = ntohs(tlsHdr->length);
+    const u_char* encryptData = reinterpret_cast<const u_char*>(tlsHdr) + sizeof(TLSRecordHdr);
+
+    ringBuffer = &((*_sessions)[_sessionKey]->getBuffer(BufferType::decryptBuffer));
+    auto decryptData = SSLSessionManager::Instance().decryptData(encryptData, encryptDataLength, (*_sessions)[_sessionKey]->getTLSSessionID(), (*_sessions)[_sessionKey]->getIsServer());
+
+    if (not decryptData.has_value())
+    {
+        return false;
+    }
+
+    ringBuffer->push(decryptData->data(), decryptData->size());
+    return true;
 }
 
 std::optional<std::string> PacketParser::parseIcmpPacket()
@@ -413,6 +460,12 @@ bool PacketParser::reassembleTcpPayload()
     if (tcpHdr->flags & kSYN)
     {
         (*_sessions)[_sessionKey] = std::make_shared<SessionData>(ntohl(tcpHdr->seqNum));
+
+        if (tcpHdr->flags & kACK)
+        {
+            (*_sessions)[_sessionKey]->setIsServer(true);
+        }
+
         return false;
     }
 
@@ -517,13 +570,14 @@ SessionKey PacketParser::peerSessionKey()
 
 std::optional<SessionProtocol> PacketParser::classifyPayload()
 {
-    if (isHttpProtocol())
+    RingBuffer &ringBuffer = (*_sessions)[_sessionKey]->getBuffer(BufferType::payloadBuffer);
+    if (isHttpProtocol(ringBuffer))
     {
         (*_sessions)[_sessionKey]->setProtocol(SessionProtocol::HTTP);
         return SessionProtocol::HTTP;
     }
 
-    if (_sslMode and isTLSProtocol())
+    if (_sslMode and isTLSProtocol(ringBuffer))
     {
         (*_sessions)[_sessionKey]->setProtocol(SessionProtocol::TLS);
         return SessionProtocol::TLS;
@@ -532,9 +586,9 @@ std::optional<SessionProtocol> PacketParser::classifyPayload()
     return std::nullopt;
 }
 
-bool PacketParser::isHttpProtocol()
+bool PacketParser::isHttpProtocol(RingBuffer& ringBuffer)
 {
-    std::string buffer = (*_sessions)[_sessionKey]->getBufferAsString();
+    std::string buffer = ringBuffer.getBufferAsString();
 
     std::istringstream stream(buffer);
     std::string line;
@@ -551,14 +605,14 @@ bool PacketParser::isHttpProtocol()
     return false;
 }
 
-bool PacketParser::isTLSProtocol()
+bool PacketParser::isTLSProtocol(RingBuffer& ringBuffer)
 {
-    if ((*_sessions)[_sessionKey]->getBufferSize() < sizeof(struct TLSRecordHdr))
+    if (ringBuffer.size() < sizeof(struct TLSRecordHdr))
     {
         return false;
     }
 
-    std::vector<u_char> buffer = (*_sessions)[_sessionKey]->getBuffer();
+    std::vector<u_char> buffer = ringBuffer.getData();
     const struct TLSRecordHdr *tlsHdr = reinterpret_cast<const struct TLSRecordHdr*>(buffer.data());
     
     if (tlsHdr->contentType < SSL3_RT_CHANGE_CIPHER_SPEC or tlsHdr->contentType > TLS1_RT_HEARTBEAT)

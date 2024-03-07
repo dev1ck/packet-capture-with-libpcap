@@ -41,7 +41,7 @@ void RingBuffer::pop(uint32_t sizeArg)
 
 }
 
-std::vector<u_char> RingBuffer::getBuffer()
+std::vector<u_char> RingBuffer::getData()
 {
     if (head >= tail)
     {
@@ -57,7 +57,7 @@ std::vector<u_char> RingBuffer::getBuffer()
     }
 }
 
-std::vector<u_char> RingBuffer::getBuffer(uint32_t sizeArg)
+std::vector<u_char> RingBuffer::getData(uint32_t sizeArg)
 {
     if (size() < sizeArg)
     {
@@ -76,6 +76,17 @@ std::vector<u_char> RingBuffer::getBuffer(uint32_t sizeArg)
     {
         return std::vector<u_char>(buffer.begin() + tail, buffer.begin() + (tail + sizeArg));
     }
+}
+std::string RingBuffer::getBufferAsString()
+{
+    std::vector<u_char> buffer = getData();
+    return std::string(buffer.begin(), buffer.end());
+}
+
+std::string RingBuffer::getBufferAsString(uint32_t sizeArg)
+{
+    std::vector<u_char> buffer = getData(sizeArg);
+    return std::string(buffer.begin(), buffer.end());
 }
 
 uint32_t RingBuffer::size()
@@ -102,7 +113,7 @@ int SessionData::insertPacket(const struct pcap_pkthdr *header, const u_char *pa
 
     if (ntohl(tcpHdr->seqNum) == _nextSeq)
     {
-        _ringBuffer.push(payloadLocate, payloadSize);
+        _payloadBuffer.push(payloadLocate, payloadSize);
         _nextSeq += payloadSize;
     }
     else
@@ -111,7 +122,7 @@ int SessionData::insertPacket(const struct pcap_pkthdr *header, const u_char *pa
         {
             
             const auto &top = _minHeap.top().second;
-            _ringBuffer.push(top.data(), top.size());
+            _payloadBuffer.push(top.data(), top.size());
             _nextSeq += top.size();
             _minHeap.pop();
 
