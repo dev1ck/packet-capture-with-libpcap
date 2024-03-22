@@ -94,7 +94,7 @@ uint32_t RingBuffer::size()
     return head >= tail ? head - tail : (max - tail) + head;
 }
 
-std::string RingBuffer::getString();
+std::string HttpPacket::getString()
 {
     if (header.size() == 0)
     {
