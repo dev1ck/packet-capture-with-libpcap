@@ -244,7 +244,7 @@ std::optional<std::map<std::string, std::string>> PacketParser::parseHttpHeader(
 std::string PacketParser::parseHttpBody(const std::map<std::string, std::string> &httpHeaders, const std::string &buffer)
 {
     std::string data;
-
+    
     auto it = httpHeaders.find("Content-Encoding");
     if (it != httpHeaders.end() and it->second == "gzip")
     {
