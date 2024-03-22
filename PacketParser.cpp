@@ -501,6 +501,15 @@ int PacketParser::classifyProtocol()
     }
 
     const struct IpHdr *ipHeader = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
+
+    std::string sip, dip;
+    sip = formatIpV4Address(&ipHeader->srcIp);
+    dip = formatIpV4Address(&ipHeader->dstIp);
+
+    if(sip == "192.168.45.81" or dip == "192.168.45.81")
+    {
+        return UNDEFINED_TYPE;
+    }
     if (ipHeader->ipP == kIpTypeTcp)
     {
         return TCP_TYPE;

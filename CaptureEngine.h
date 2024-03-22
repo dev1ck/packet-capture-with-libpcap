@@ -27,7 +27,6 @@ private:
     pcap_t* _pcapHandle = nullptr;
     pcap_dumper_t *_dumper_t = nullptr;
     std::map<SessionKey, std::shared_ptr<SessionData>> _sessions;
-    std::string _keyLogFile = "";
     bool _sslMode = false;
     // void checkSessionThread();
     // struct timeval getCurrentTimeval();
@@ -41,10 +40,7 @@ public:
     void dumpCaptureStart(const std::string& path);
     void offlineParseStart(const std::string& path, int mode);
     void stop();
-    void setSSLMode()
-    {
-        _sslMode = true;
-    }
+    void setSSLMode() { _sslMode = true; }
     static void PrintPcapVersion();
     static void PrintNICInfo();
 };

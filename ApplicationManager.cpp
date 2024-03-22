@@ -67,7 +67,7 @@ void ApplicationManager::parseOptions()
                     exit(0);
                 }
                 _sslMode = true;
-                _keyLogFile = optarg;
+                _keyFile = optarg;
                 break;
             default:
                 usage();
@@ -92,7 +92,7 @@ void ApplicationManager::setting()
 
     if (_sslMode)
     {
-        if (SSLSessionManager::Instance().loadPrivateKey(_keyLogFile))
+        if (SSLSessionManager::Instance().loadPrivateKey(_keyFile))
         {
             _capture_engine.setSSLMode();         
         }
@@ -126,5 +126,5 @@ void ApplicationManager::stop()
 void ApplicationManager::usage()
 {
     CaptureEngine::PrintPcapVersion();
-    std::cout << "Usage: dump [-hDtria] [-I interface] [-W file] [-R file]\n";
+    std::cout << "Usage: cap [-I interface] [-W file] [-R file] [-hDtria] [-k Key file] \n";
 }
