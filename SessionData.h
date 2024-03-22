@@ -14,6 +14,11 @@ enum BufferType
     decryptBuffer
 };
 
+enum HttpHeadersCategory
+{
+
+}
+
 struct RingBuffer
 {
 private:
@@ -39,6 +44,7 @@ public:
 struct HttpPacket
 {
     std::map<std::string, std::string> header;
+    std::map<HttpHeadersCategory, std::vector<std::string>>
     std::string body = "";
     void clear()
     {

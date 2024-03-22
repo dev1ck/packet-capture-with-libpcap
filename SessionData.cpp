@@ -111,6 +111,7 @@ std::string HttpPacket::getString()
     else
     {
         result += "[Response Headers]\n";
+        
     }
 
     for (const auto &pair: header)
