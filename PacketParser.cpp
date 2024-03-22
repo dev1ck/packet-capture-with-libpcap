@@ -191,12 +191,13 @@ std::optional<std::map<std::string, std::string>> PacketParser::parseHttpHeader(
     else if (std::regex_search(line, response_pattern))
     {
         std::istringstream iss(line);
-        std::string code, version;
-        iss >> version >> code;
+        std::string code, version, message;
+        iss >> version >> code >> message;
 
         httpHeaders["Type"] = "Response";
         httpHeaders["Version"] = version;
         httpHeaders["Code"] = code;
+        httpHeaders["Message"] = message;
     }
     else
     {
@@ -242,6 +243,21 @@ std::optional<std::map<std::string, std::string>> PacketParser::parseHttpHeader(
 
 std::string PacketParser::parseHttpBody(const std::map<std::string, std::string> &httpHeaders, const std::string &buffer)
 {
+    std::string data;
+
+    auto it = httpHeaders.find("Content-Encoding");
+    if (it != httpHeaders.end() and it->second == "gzip")
+    {
+        std::string decompress_data;
+        codec::Gzip::Decompress(buffer, decompress_data);
+
+        data = std::move(decompress_data);
+    }
+    else
+    {
+        data = buffer;
+    }
+
     std::regex textBasedPattern(
         R"(text/.*|application/json|application/javascript|application/xml|application/xhtml\+xml)",
         std::regex_constants::ECMAScript | std::regex_constants::icase);
@@ -250,7 +266,7 @@ std::string PacketParser::parseHttpBody(const std::map<std::string, std::string>
         R"(image/.*|application/octet-stream)",
         std::regex_constants::ECMAScript | std::regex_constants::icase);
 
-    auto it = httpHeaders.find("Content-Type");
+    it = httpHeaders.find("Content-Type");
     if (it == httpHeaders.end())
     {   
         return "Unknown type";
@@ -281,7 +297,7 @@ std::string PacketParser::parseHttpBody(const std::map<std::string, std::string>
             std::ofstream file(filename, std::ios::binary);
             if (file.is_open())
             {
-                file.write(buffer.data(), buffer.size());
+                file.write(data.data(), data.size());
                 file.close();
                 return "Saved File";
             }
@@ -289,16 +305,7 @@ std::string PacketParser::parseHttpBody(const std::map<std::string, std::string>
         return "File not supported";
     }         
 
-    it = httpHeaders.find("Content-Encoding");
-    if (it != httpHeaders.end() and it->second == "gzip")
-    {
-        std::string decompress_data;
-        codec::Gzip::Decompress(buffer, decompress_data);
-
-        return decompress_data;
-    }
-
-    return buffer;
+    return data;
 }
 
 std::optional<std::string> PacketParser::parseTLSPacket()

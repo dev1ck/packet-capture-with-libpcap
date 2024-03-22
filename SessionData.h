@@ -45,30 +45,7 @@ struct HttpPacket
         header.clear();
         body = "";
     }
-    std::string getString()
-    {
-        if (header.size() == 0)
-        {
-            return "";
-        }
-
-        std::string result;
-
-        result += "[" + header["Type"] + "]\n";
-        for (const auto &pair: header)
-        {
-            result += pair.first + " : " + pair.second + "\n";
-        }
-
-        if (not body.empty())
-        {
-            result += "-------------------------------------------\n";
-            result += body;
-            result += "\n-------------------------------------------\n";
-        }
-
-        return result;
-    }
+    std::string getString();
 };
 
 enum SessionProtocol
