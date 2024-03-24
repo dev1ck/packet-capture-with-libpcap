@@ -94,41 +94,6 @@ uint32_t RingBuffer::size()
     return head >= tail ? head - tail : (max - tail) + head;
 }
 
-std::string HttpPacket::getString()
-{
-    if (header.size() == 0)
-    {
-        return "";
-    }
-
-    std::string result;
-
-    if (header["Type"] == "Request")
-    {
-        result += "[Request Headers]\n";
-
-    }
-    else
-    {
-        result += "[Response Headers]\n";
-        
-    }
-
-    for (const auto &pair: header)
-    {
-        result += pair.first + " : " + pair.second + "\n";
-    }
-
-    if (not body.empty())
-    {
-        result += "\n[Body]\n";
-        result += body + "\n";
-    }
-    result += "\n\n";
-
-        return result;
-}
-
 int SessionData::insertPacket(const struct pcap_pkthdr *header, const u_char *packet)
 {
     _lastPacketTime = header->ts;
@@ -143,7 +108,6 @@ int SessionData::insertPacket(const struct pcap_pkthdr *header, const u_char *pa
     {
         return 0;
     }
-    // std::cout << "next seq : " << _nextSeq << " now seq : " << ntohl(tcpHdr->seqNum) << std::endl;
 
     if (ntohl(tcpHdr->seqNum) == _nextSeq)
     {

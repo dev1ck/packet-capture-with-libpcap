@@ -153,7 +153,8 @@ std::optional<std::string> PacketParser::parseHttpPacket(BufferType bufferType)
         ringBuffer.pop(contentLength);
     }
 
-    std::string result = (*_sessions)[_sessionKey]->getStringHttpPacket();
+
+    std::string result = toStringFromHttp((*_sessions)[_sessionKey]->getHttpPacket());
     (*_sessions)[_sessionKey]->clearHttpPacket();
 
     return result;
@@ -179,25 +180,21 @@ std::optional<std::map<std::string, std::string>> PacketParser::parseHttpHeader(
 
     if (std::regex_search(line, request_pattern))
     {
-        std::istringstream iss(line);
-        std::string method, path, version;
-        iss >> method >> path >> version;
-
-        httpHeaders["Type"] = "Request";
-        httpHeaders["Method"] = method;
-        httpHeaders["Path"] = path;
-        httpHeaders["Version"] = version;
+        // std::istringstream iss(line);
+        // std::string method, path, version;
+        // iss >> method >> path >> version;
+        
+        httpHeaders["Type"] = "Response";
+        httpHeaders["StartLine"] = method;
     }
     else if (std::regex_search(line, response_pattern))
     {
-        std::istringstream iss(line);
-        std::string code, version, message;
-        iss >> version >> code >> message;
-
+        // std::istringstream iss(line);
+        // std::string code, version, message;
+        // iss >> version >> code >> message;
+        
         httpHeaders["Type"] = "Response";
-        httpHeaders["Version"] = version;
-        httpHeaders["Code"] = code;
-        httpHeaders["Message"] = message;
+        httpHeaders["StartLine"] = method;
     }
     else
     {
@@ -658,5 +655,86 @@ bool PacketParser::checkCipherSuite(uint16_t cipherSuite)
             return true;
         default:
             return false;
+    }
+}
+
+std::string PacketParser::toStringFromHttp(const struct HttpPacket& httpPacket)
+{
+    std::map<HeaderCategory, std::vector<std::pair<std::string, std::string>>> categorizeHeaders;
+    std::string result = "";
+
+    // 헤더 카테고리 분류
+    for (const auto& header: httpPacket.headers)
+    {
+        HeaderCategory category = categoryHeader(header.first);
+        categorizeHeaders[category].push_back(header);
+    }
+
+    std::vector<HeaderCategory> orderedCategories = {
+        HeaderCategory::Request,
+        HeaderCategory::Response,
+        HeaderCategory::General,
+        HeaderCategory::Unknown
+    };
+
+    result += "[Start Line]\n";
+    result += httpPacket.headers["StartLine"] + "\n";
+    
+    for (const auto& category: orderedCategories)
+    {
+        auto it = categorizeHeaders.find(category);
+        if (it != categorizeHeaders.end())
+        {
+            switch(category)
+            {
+                case HeaderCategory::Request:
+                    result += "[Request Header]\n";
+                    break;
+                case HeaderCategory::Response:
+                    result += "[Response Header]\n";
+                    break;
+                case HeaderCategory::General:
+                    result += "[General Header]\n";
+                    break;
+            }
+
+            for (const auto& headers: it->second)
+            {
+                result += "- " + headers.first + ": " + headers.second + "\n";
+            }
+
+            result += "\n";
+        }
+    }
+
+    if (httpPacket.headers.count("Content-Length") != 0)
+    {
+        result += "[Body]\n";
+        result += httpPacket.body + "\n";
+    }
+
+    result += "\n";
+
+    return result;
+}
+
+
+HeaderCategory PacketParser::categoryHeader(const std::string& headerName)
+{
+    if (_headersByCategory["General"].find(headerName) != _headersByCategory["General"].end())
+    {
+        return HeaderCategory::General;
+    }
+    else if (_headersByCategory["Request"].find(headerName) != _headersByCategory["Request"].end())
+    {
+        return HeaderCategory::Request;
+    }
+    else if (_headersByCategory["Response"].find(headerName) != _headersByCategory["Response"].end())
+    {
+        return HeaderCategory::Response;
+    }
+    else
+    {
+        return HeaderCategory::Unknown;
     }
 }

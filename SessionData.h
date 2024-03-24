@@ -14,9 +14,12 @@ enum BufferType
     decryptBuffer
 };
 
-enum HttpHeadersCategory
+enum HeaderCategory
 {
-
+    General,
+    Request,
+    Response,
+    Unknown
 }
 
 struct RingBuffer
@@ -43,15 +46,13 @@ public:
 
 struct HttpPacket
 {
-    std::map<std::string, std::string> header;
-    std::map<HttpHeadersCategory, std::vector<std::string>>
+    std::map<std::string, std::string> headers;
     std::string body = "";
     void clear()
     {
         header.clear();
         body = "";
     }
-    std::string getString();
 };
 
 enum SessionProtocol
@@ -91,12 +92,12 @@ public:
     }
     int getProtocol() { return _protocol; }
     void setProtocol(SessionProtocol type) { _protocol = type; }
-    void setHttpHeader(std::map<std::string, std::string> &header) { _httpPacket.header = std::move(header); }
+    void setHttpHeader(std::map<std::string, std::string> &header) { _httpPacket.headers = std::move(header); }
     void setHttpBody(std::string body) { _httpPacket.body = std::move(body); }
-    std::map<std::string, std::string>& getHttpHeader() { return _httpPacket.header; }
+    std::map<std::string, std::string>& getHttpHeader() { return _httpPacket.headers; }
     std::string& getHttpBody() { return _httpPacket.body; }
     void clearHttpPacket() { _httpPacket.clear(); }
-    std::string getStringHttpPacket() { return _httpPacket.getString(); }
+    const struct HttpPacket& getHttpPacket() { return _httpPacket; }
     void setTLSSessionID(const std::string &sessionID) { _sslSessionId = sessionID; }
     std::string getTLSSessionID() { return _sslSessionId; } 
     void setIsServer(bool isServer) { _isServer = isServer; }

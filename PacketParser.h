@@ -13,6 +13,8 @@
 #include <sstream>
 #include <vector>
 #include <fstream>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <arpa/inet.h>
 #include <pcap/pcap.h>
@@ -62,8 +64,51 @@ private:
     std::string formatTimeval(struct timeval tv);
     std::string formatMacAddress(const uint8_t *macAddr);
     std::string formatIpV4Address(const void *address);
+    std::string toStringFromHttp(const struct HttpPacket& httpPacket);
 
     std::optional<SessionProtocol> classifyPayload();
+    HeaderCategory categoryHeader(const std::string& headerName);
+
+    std::unordered_map<std::string, std::unordered_set<std::string>> _headersByCategory =
+    {
+        {
+            "General",     
+            {
+                "Cache-Control", 
+                "Connection", 
+                "Date",
+                "Pragma",
+                "Via",
+                "Warning",
+                "Content-Length",
+                "Content-Type",
+                "Transfer-Encoding"
+            }},
+        {
+            "Request", 
+            {
+                "Host",
+                "User-Agent",
+                "Accept",
+                "Accept-Language",
+                "Accept-Encoding",
+                "Authorization",
+                "Referer",
+                "Cookie"
+            }
+        },
+        {
+            "Response",
+            {
+                "Server",
+                "Set-Cookie",
+                "WWW-Authenticate",
+                "Location",
+                "Content-Encoding",
+                "Content-Language"
+            }
+        }
+    }
 public:
     PacketParser(const struct pcap_pkthdr *header, const u_char *packet, bool sslMode) : _header(header), _packet(packet), _sslMode(sslMode) {}
     void setSessions(std::map<SessionKey, std::shared_ptr<SessionData>> *sessions) {_sessions = sessions;}
