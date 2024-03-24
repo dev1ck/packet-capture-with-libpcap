@@ -185,7 +185,7 @@ std::optional<std::map<std::string, std::string>> PacketParser::parseHttpHeader(
         // iss >> method >> path >> version;
         
         httpHeaders["Type"] = "Response";
-        httpHeaders["StartLine"] = method;
+        httpHeaders["StartLine"] = line;
     }
     else if (std::regex_search(line, response_pattern))
     {
@@ -194,7 +194,7 @@ std::optional<std::map<std::string, std::string>> PacketParser::parseHttpHeader(
         // iss >> version >> code >> message;
         
         httpHeaders["Type"] = "Response";
-        httpHeaders["StartLine"] = method;
+        httpHeaders["StartLine"] = line;
     }
     else
     {
@@ -678,7 +678,7 @@ std::string PacketParser::toStringFromHttp(const struct HttpPacket& httpPacket)
     };
 
     result += "[Start Line]\n";
-    result += httpPacket.headers["StartLine"] + "\n";
+    result += httpPacket.headers.at("StartLine") + "\n";
     
     for (const auto& category: orderedCategories)
     {
@@ -695,6 +695,8 @@ std::string PacketParser::toStringFromHttp(const struct HttpPacket& httpPacket)
                     break;
                 case HeaderCategory::General:
                     result += "[General Header]\n";
+                    break;
+                default:
                     break;
             }
 

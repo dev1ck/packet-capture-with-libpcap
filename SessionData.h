@@ -20,7 +20,7 @@ enum HeaderCategory
     Request,
     Response,
     Unknown
-}
+};
 
 struct RingBuffer
 {
@@ -50,7 +50,7 @@ struct HttpPacket
     std::string body = "";
     void clear()
     {
-        header.clear();
+        headers.clear();
         body = "";
     }
 };

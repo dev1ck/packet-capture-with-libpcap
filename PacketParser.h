@@ -108,7 +108,7 @@ private:
                 "Content-Language"
             }
         }
-    }
+    };
 public:
     PacketParser(const struct pcap_pkthdr *header, const u_char *packet, bool sslMode) : _header(header), _packet(packet), _sslMode(sslMode) {}
     void setSessions(std::map<SessionKey, std::shared_ptr<SessionData>> *sessions) {_sessions = sessions;}

@@ -13,6 +13,7 @@
 #include <cstring>
 #include <cstdio>
 #include <vector>
+#include <optional>
 
 #include <iostream>
 #include <sstream>
