@@ -15,6 +15,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <unordered_set>
+#include <sstream>
 
 #include <arpa/inet.h>
 #include <pcap/pcap.h>
@@ -82,7 +83,9 @@ private:
                 "Warning",
                 "Content-Length",
                 "Content-Type",
-                "Transfer-Encoding"
+                "Transfer-Encoding",
+                "Keep-Alive",
+                "Upgrade-Insecure-Requests"
             }},
         {
             "Request", 
@@ -94,7 +97,10 @@ private:
                 "Accept-Encoding",
                 "Authorization",
                 "Referer",
-                "Cookie"
+                "Cookie",
+                "If-Modified-Since",
+                "If-None-Match",
+                "Upgrade-Insecure-Requests"
             }
         },
         {
@@ -105,7 +111,11 @@ private:
                 "WWW-Authenticate",
                 "Location",
                 "Content-Encoding",
-                "Content-Language"
+                "Content-Language",
+                "Accept-Ranges",
+                "ETag",
+                "Last-Modified",
+                "Vary"
             }
         }
     };

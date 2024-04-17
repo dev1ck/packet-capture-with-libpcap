@@ -3,79 +3,79 @@
 
 std::optional<std::string> PacketParser::parseTcpHdr()
 {
-    std::string result;
-    result = formatTimeval(_header->ts) + ' ';
+    std::stringstream result;
+    result << formatTimeval(_header->ts) << ' ';
     
     const struct IpHdr *ipHdr = reinterpret_cast<const struct IpHdr*>(_packet + sizeof(struct EtherHdr));
     const struct TcpHdr *tcpHdr = reinterpret_cast<const struct TcpHdr*>(
         reinterpret_cast<const u_char*>(ipHdr) + (ipHdr->ipHl * 4));
 
-    result += formatIpV4Address(&ipHdr->srcIp) + ":" + std::to_string(ntohs(tcpHdr->srcPort)) + " > ";
-    result += formatIpV4Address(&ipHdr->dstIp) + ":" + std::to_string(ntohs(tcpHdr->dstPort)) + " ";
+    result << formatIpV4Address(&ipHdr->srcIp) << ":" << std::to_string(ntohs(tcpHdr->srcPort)) << " > ";
+    result << formatIpV4Address(&ipHdr->dstIp) << ":" << std::to_string(ntohs(tcpHdr->dstPort)) << " ";
     
-    result += "Flags [";
+    result << "Flags [";
 
     if (tcpHdr->flags & kURG)
     {
-        result += 'U';
+        result << 'U';
     }
     if (tcpHdr->flags & kACK)
     {
-        result += 'A';
+        result << 'A';
     }
     if (tcpHdr->flags & kPSH)
     {
-        result += 'P';
+        result << 'P';
     }
     if (tcpHdr->flags & kRST)
     {
-        result += 'R';
+        result << 'R';
     }
     if (tcpHdr->flags & kSYN)
     {
-        result += 'S';
+        result << 'S';
     }
     if (tcpHdr->flags & kFIN)
     {
-        result += 'F';
+        result << 'F';
     }
 
-    result += "], seq " + std::to_string(ntohl(tcpHdr->seqNum)) + " ";
+    result << "], seq " << std::to_string(ntohl(tcpHdr->seqNum)) << " ";
 
     if (tcpHdr->flags & kACK)
     {
-        result += "ack " + std::to_string(ntohl(tcpHdr->ackNum)) + " ";
+        result << "ack " << std::to_string(ntohl(tcpHdr->ackNum)) << " ";
     }
 
-    result += "win "+ std::to_string(ntohs(tcpHdr->winSize)) + ", ";
-    result += "length " + std::to_string(_header->len);
+    result << "win "<< std::to_string(ntohs(tcpHdr->winSize)) << ", ";
+    result << "length " << std::to_string(_header->len);
 
-    return result;
+    return result.str();
 
 }
 std::optional<std::string> PacketParser::parseArpPacket()
 {
     const struct ArpHdr *arpHdr = reinterpret_cast<const struct ArpHdr*>(_packet + sizeof(EtherHdr));
   
-    std::string result;
-    result = formatTimeval(_header->ts) + ' ';
+    std::stringstream result;
+    result << formatTimeval(_header->ts) << ' ';
 
     if (ntohs(arpHdr->arpOp) == kArpRequest)
     {
-        result += "Request who-has " + formatIpV4Address(&arpHdr->arpTip) 
-            + " tell " + formatIpV4Address(&arpHdr->arpSip);
+        result << "Request who-has " << formatIpV4Address(&arpHdr->arpTip) 
+            << " tell " << formatIpV4Address(&arpHdr->arpSip);
     }
     else if (ntohs(arpHdr->arpOp) == kArpReply)
     {
-        result += "Reply " + formatIpV4Address(&arpHdr->arpSip)
-            + " is-at " + formatMacAddress(arpHdr->arpSha);
+        result << "Reply " << formatIpV4Address(&arpHdr->arpSip)
+            << " is-at " << formatMacAddress(arpHdr->arpSha);
     }
     else
     {
         return std::nullopt;
     }
     
-    return result;
+    return result.str();
 
 }
 std::optional<std::string> PacketParser::parseTcpPayload()
@@ -184,7 +184,7 @@ std::optional<std::map<std::string, std::string>> PacketParser::parseHttpHeader(
         // std::string method, path, version;
         // iss >> method >> path >> version;
         
-        httpHeaders["Type"] = "Response";
+        //httpHeaders["Type"] = "Request";
         httpHeaders["StartLine"] = line;
     }
     else if (std::regex_search(line, response_pattern))
@@ -193,7 +193,7 @@ std::optional<std::map<std::string, std::string>> PacketParser::parseHttpHeader(
         // std::string code, version, message;
         // iss >> version >> code >> message;
         
-        httpHeaders["Type"] = "Response";
+        // httpHeaders["Type"] = "Response";
         httpHeaders["StartLine"] = line;
     }
     else
@@ -661,7 +661,7 @@ bool PacketParser::checkCipherSuite(uint16_t cipherSuite)
 std::string PacketParser::toStringFromHttp(const struct HttpPacket& httpPacket)
 {
     std::map<HeaderCategory, std::vector<std::pair<std::string, std::string>>> categorizeHeaders;
-    std::string result = "";
+    std::stringstream result;
 
     // 헤더 카테고리 분류
     for (const auto& header: httpPacket.headers)
@@ -669,7 +669,6 @@ std::string PacketParser::toStringFromHttp(const struct HttpPacket& httpPacket)
         HeaderCategory category = categoryHeader(header.first);
         categorizeHeaders[category].push_back(header);
     }
-
     std::vector<HeaderCategory> orderedCategories = {
         HeaderCategory::Request,
         HeaderCategory::Response,
@@ -677,47 +676,55 @@ std::string PacketParser::toStringFromHttp(const struct HttpPacket& httpPacket)
         HeaderCategory::Unknown
     };
 
-    result += "[Start Line]\n";
-    result += httpPacket.headers.at("StartLine") + "\n";
-    
+    if (httpPacket.headers.find("StartLine") != httpPacket.headers.end())
+    {
+        result << "[Start Line]\n";
+        result << "- " << httpPacket.headers.at("StartLine") << "\n";
+        result << "\n";
+    }
     for (const auto& category: orderedCategories)
     {
         auto it = categorizeHeaders.find(category);
         if (it != categorizeHeaders.end())
         {
+            bool skip = false;
             switch(category)
             {
                 case HeaderCategory::Request:
-                    result += "[Request Header]\n";
+                    result << "[Request Header]\n";
                     break;
                 case HeaderCategory::Response:
-                    result += "[Response Header]\n";
+                    result << "[Response Header]\n";
                     break;
                 case HeaderCategory::General:
-                    result += "[General Header]\n";
+                    result << "[General Header]\n";
                     break;
                 default:
+                    skip = true;
                     break;
             }
 
-            for (const auto& headers: it->second)
+            if (not skip)
             {
-                result += "- " + headers.first + ": " + headers.second + "\n";
+                for (const auto& headers: it->second)
+                {
+                    result << "- " << headers.first + ": " + headers.second << "\n";
+                }
             }
-
-            result += "\n";
+            result << "\n";
+            skip = false;
         }
     }
 
     if (httpPacket.headers.count("Content-Length") != 0)
     {
-        result += "[Body]\n";
-        result += httpPacket.body + "\n";
+        result << "[Body]\n";
+        result << httpPacket.body + "\n";
     }
 
-    result += "\n";
+    result << "----------------------------------------\n";
 
-    return result;
+    return result.str();
 }
 
 
