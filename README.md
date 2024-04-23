@@ -33,3 +33,15 @@ libpcap 라이브러리를 이용하여 네트워크 상의 실시간으로 흐�
 
 ### Active Diagram (HTTP 파싱)
 ![액티브 다이어그램_HTTP](https://github.com/dev1ck/packet-capture-with-libpcap/assets/96347313/ca03c96e-8f51-426f-85f4-bda1b798670f)
+
+<br/>
+
+## ⚡ 기능 및 옵션 소개
+### 기능
+- 동작 모드: Live capture, Write mode, Read mode
+- 지원 프로토콜: ARP, ICMP, TCP, HTTP, HTTPS
+- gzip 압축 해제 기능 지원
+- HTTP 바이너리 파일 저장 기능
+
+### 옵션
+![옵션](https://github.com/dev1ck/packet-capture-with-libpcap/assets/96347313/5e69d5b3-0966-445a-a05c-c3fc79be2025)
